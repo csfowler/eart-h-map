@@ -217,6 +217,17 @@ CUSTOM_FEATURES_SCHEMA <- c(
   "label_offset_x", "label_offset_y", "hidden"
 )
 
+# Every feature type the editor can create, and the geometry it must have.
+# The editor offers FEATURE_TYPES; tests/test-annotations.R checks saved
+# features against FEATURE_GEOMETRY (the editor lets you retype a feature, so a
+# point can end up labelled "road").
+FEATURE_GEOMETRY <- c(
+  road = "LINESTRING", trail = "LINESTRING", river = "LINESTRING",
+  forest = "POLYGON", lake = "POLYGON", mountain = "POLYGON", region = "POLYGON",
+  label = "POINT", poi = "POINT"
+)
+FEATURE_TYPES <- names(FEATURE_GEOMETRY)
+
 #' Read custom_features.geojson; returns NULL if file is missing or empty.
 #' Backfills any missing schema columns so the editor can rely on a fixed shape.
 #' (MapBuilder has a separate load_custom_features() that additionally splits

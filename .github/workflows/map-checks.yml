@@ -1,0 +1,148 @@
+# Ships as .github/workflows/map-checks.yml in the student map repo.
+#
+# Two jobs, both required to merge (Settings > Branches > main):
+#   Conformance tests  the whole suite on a warm map, plus the scope check on PRs
+#   Change report      renders the reference tiles on the base and on the PR,
+#                      compares them, and attaches report.html as an artifact
+#
+# pull_request (not pull_request_target): a fork's code runs with a read-only
+# token and no secrets, so nothing here can be used to write to the repo.
+name: Map checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Conformance tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      EARTH_MAP_ROOT: ${{ runner.temp }}/map
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::terra
+            any::sf
+            any::ambient
+            any::jsonlite
+            any::here
+            any::digest
+            any::dplyr
+            any::magrittr
+            any::leaflet
+
+      - name: Scope check
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: Rscript tests/check-pr-scope.R origin/${{ github.base_ref }}
+
+      - name: Restore map cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/map
+          key: map-${{ hashFiles('Functions/MapBuilder.R', 'Functions/map_template.html', 'Input Data/**') }}
+          restore-keys: map-
+
+      - name: Build map and warm caches
+        run: Rscript tests/ci-prepare.R
+
+      - name: Conformance suite
+        run: Rscript tests/run-tests.R
+
+  report:
+    name: Change report
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EARTH_MAP_ROOT: ${{ runner.temp }}/map
+      REF: ${{ runner.temp }}/ref
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: head
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::terra
+            any::sf
+            any::ambient
+            any::jsonlite
+            any::here
+            any::digest
+            any::dplyr
+            any::magrittr
+            any::leaflet
+
+      - name: Restore map cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/map
+          key: map-${{ hashFiles('base/Functions/MapBuilder.R', 'base/Functions/map_template.html', 'base/Input Data/**') }}
+          restore-keys: map-
+
+      # The base's scripts render BOTH sides, so a PR cannot change how it is
+      # judged. Paths inside them resolve through here::here(), i.e. the
+      # checkout they are run from.
+      - name: Render base
+        working-directory: base
+        run: |
+          Rscript tests/ci-prepare.R
+          Rscript tests/render-reference.R "$REF/base"
+
+      - name: Render this change
+        working-directory: head
+        run: |
+          Rscript ../base/tests/ci-prepare.R
+          Rscript ../base/tests/render-reference.R "$REF/head" --tiles "$REF/base/tiles.csv"
+
+      - name: Compare
+        working-directory: base
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          EXPECT=$(printf '%s\n' "$PR_BODY" | grep -i '^ *expect *:' | head -n1 | sed 's/<!--.*-->//g; s/^[^:]*: *//; s/[[:space:]]//g')
+          set +e
+          Rscript tests/compare-renders.R "$REF/base" "$REF/head" "$REF/report" --expect "$EXPECT"
+          status=$?
+          cat "$REF/report/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: map-report
+          path: ${{ runner.temp }}/ref/report/report.html
+          if-no-files-found: ignore

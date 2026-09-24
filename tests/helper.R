@@ -60,6 +60,43 @@ have_map_root <- function() {
   !is.null(r) && dir.exists(r)
 }
 
+#' Are the road/river, settlement and sacred-site caches built and current?
+#' A render with features on would otherwise build them first (~4 minutes),
+#' which is not something a test run should do by surprise.
+feature_caches_warm <- function() {
+  if (!have_map_root()) return(FALSE)
+  warm <- function(path, stamp)
+    file.exists(path) && isTRUE(cache_load(path, stamp, verbose = FALSE)$hit)
+  vec <- file.exists(.tile_vec_cache()) && {
+    raw <- try(readRDS(.tile_vec_cache()), silent = TRUE)
+    !inherits(raw, "try-error") && is.list(raw) &&
+      identical(raw$.prov_roads$combined,  .prov_roads_stamp()$combined) &&
+      identical(raw$.prov_rivers$combined, .prov_rivers_stamp()$combined)
+  }
+  vec && warm(.tile_settle_cache(), .prov_setts_stamp()) &&
+    warm(.tile_sacred_cache(), .prov_sacred_stamp())
+}
+
+#' Render one tile to a temp PNG and return its RGB values (rows = pixels).
+#' Features are drawn only when their caches are warm; `features` reports
+#' which it was, so a message can say what was actually tested.
+render_rgb <- function(z, x, y, features = feature_caches_warm()) {
+  p <- tempfile(fileext = ".png")
+  render_elevation_tile(z, x, y, p, detail_amp = if (features) 1 else 0, verbose = FALSE)
+  v <- terra::values(terra::rast(p))[, 1:3, drop = FALSE]
+  unlink(p)
+  v
+}
+
+#' lon/lat -> XYZ tile indices (XYZ y, which render_elevation_tile() takes).
+lonlat_tile <- function(lon, lat, z) {
+  n <- 2^z
+  lat <- max(min(lat, 85.05), -85.05)
+  r <- lat * pi / 180
+  list(x = as.integer(floor((lon + 180) / 360 * n)),
+       y = as.integer(floor((1 - log(tan(r) + 1 / cos(r)) / pi) / 2 * n)))
+}
+
 test_summary <- function() {
   s <- .TEST_STATE
   cat(sprintf("\n%s\n", strrep("-", 66)))

@@ -87,8 +87,8 @@ probe_tile_server <- function(url = TILE_SERVER_URL, timeout = 1.5) {
   out
 }
 
-FEATURE_TYPES <- c("road", "trail", "river", "forest", "lake", "mountain",
-                   "region", "label", "poi")
+# FEATURE_TYPES comes from AnnotationBuilder.R, alongside the geometry each
+# type must have.
 FEATURE_TYPE_COLORS <- c(
   road = "#5c3a1e", trail = "#a08060", river = "#2166ac",
   forest = "#1a9850", lake = "#4393c3", mountain = "#737373",

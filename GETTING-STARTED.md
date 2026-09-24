@@ -456,6 +456,33 @@ Blessing blindly, just to turn the test green, removes the protection everyone
 else relies on. A new procedural field has to be registered in
 `Functions/NoiseFields.R`; the suite shows you which offsets are free.
 
+## What happens to your pull request
+
+Two checks run automatically on every pull request, and both must pass
+before it can merge:
+
+- **Conformance tests.** The same `tests/run-tests.R` you ran, plus a scope
+  check on what your branch changed. The scope check fails a PR that
+  rewrites canon files or hides a POI. It flags anything else a reviewer
+  should read: new code that runs shell commands or deletes files, edits to
+  existing tests, and changes to other people's drawn features.
+- **Change report.** It renders a fixed set of about 40 reference tiles (a
+  walled city, a port, a sacred grove, a ferry crossing, a patch of each
+  biome, and so on, at z10, z12 and z14), once with `main` and once with your
+  branch, and compares them. It fails if your change breaks a tile or makes
+  rendering more than twice as slow. The full before/after/difference page is
+  attached to the run as `map-report`, and it is what the merge decision is
+  made from.
+
+The pull request template asks for an **`Expect:`** line: what your change is
+*meant* to touch, e.g. `Expect: roads, settlements`. Any reference tile that
+changed but has none of those things in frame is reported as **collateral**.
+A roads change that moves a desert tile with no roads on it has a side
+effect. Find out why before asking for a merge.
+
+Merging is not the last step. Accepted changes are re-tested against the
+full-precision world data before they become canon.
+
 ## What to hand back
 
 Work on a branch of your fork and open a pull request. Include:

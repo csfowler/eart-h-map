@@ -169,6 +169,12 @@ tile_setup <- function(z, x, y_xyz, tile_px = 256L, pad_px = 10L, detail_amp = 1
 #' Crop a padded composite to the exact tile grid, add opaque alpha, write PNG.
 write_tile_png <- function(comp, ext3857, tile_px, png_path, verbose = FALSE) {
   comp <- crop(comp, ext3857)
+  # Outside every continent transform there is no canon at all, and by
+  # definition that is open sea. NA used to reach the PNG as 0 under an opaque
+  # alpha -- solid black squares over the ocean from z9 up. Same deep-water
+  # colour as composite_terrain() and the static pyramid's far-field fill.
+  deep <- c(38, 76, 128)
+  for (b in 1:3) comp[[b]] <- subst(comp[[b]], NA, deep[b])
   comp <- resample(comp, rast(ext3857, ncol = tile_px, nrow = tile_px, crs = "EPSG:3857"),
                    method = "near")
   alpha <- comp[[1]]; values(alpha) <- 255

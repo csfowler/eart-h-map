@@ -167,17 +167,7 @@ if (!have_render_data()) {
       if (!have_map_root()) {
         skip("no map root - the feature caches live under it"); return(invisible(NULL))
       }
-      warm <- function(path, stamp)
-        file.exists(path) && isTRUE(cache_load(path, stamp, verbose = FALSE)$hit)
-      vec_warm <- file.exists(.tile_vec_cache()) && {
-        raw <- try(readRDS(.tile_vec_cache()), silent = TRUE)
-        !inherits(raw, "try-error") && is.list(raw) &&
-          identical(raw$.prov_roads$combined,  .prov_roads_stamp()$combined) &&
-          identical(raw$.prov_rivers$combined, .prov_rivers_stamp()$combined)
-      }
-      if (!vec_warm ||
-          !warm(.tile_settle_cache(), .prov_setts_stamp()) ||
-          !warm(.tile_sacred_cache(), .prov_sacred_stamp())) {
+      if (!feature_caches_warm()) {
         skip("feature caches are cold or stale - run the tile server once, then re-run")
         return(invisible(NULL))
       }

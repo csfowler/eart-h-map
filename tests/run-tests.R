@@ -40,7 +40,9 @@ files <- c("test-noise-registry.R",
            "test-seamlessness.R",
            "test-crosszoom.R",
            "test-canon.R",
-           "test-render.R")
+           "test-render.R",
+           "test-output.R",
+           "test-annotations.R")
 
 for (f in files) {
   p <- here::here("tests", f)

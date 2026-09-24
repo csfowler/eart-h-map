@@ -530,6 +530,18 @@ render time.
 | `test-crosszoom.R` | adding octaves **adds** detail rather than re-rolling the surface; the zoom ceiling does not outrun the ladder |
 | `test-canon.R` | relief never raises water above the anchor nor sinks inland land below sea level; codes stay in range; nodata is honoured |
 | `test-render.R` | tiles actually render: right size, real variation, land and water both present, and the full feature pass runs when its caches are warm |
+| `test-output.R` | the invariants on RENDERED pixels: no step at tile edges, z13 children average back to their z12 parent, painted water matches `water_class`, byte-identical output across R processes, and awkward places (open ocean, far north, the antimeridian) render with no opaque black. Limits are multiples of measured values; the numbers are in the file. |
+| `test-annotations.R` | drawn features are well-formed: known types with the right geometry, unique ids, roads over land, linked images present |
+
+**On a pull request, CI also runs** (`.github/workflows/map-checks.yml`):
+`check-pr-scope.R` (what the diff touched: canon, golden, tests, risky calls,
+other people's annotations) and a change report. `render-reference.R` renders
+the reference tiles from `reference-tiles.R` on base and branch, and
+`compare-renders.R` diffs them into `report.html`. `ci-prepare.R` builds the
+vector map and warms the caches first. The PR's `Expect:` line names what the
+change should touch; changed tiles with none of it in frame are *collateral*.
+When the report shows collateral change, find the cause before calling the
+work finished.
 
 **A golden failure is a question, not a verdict.** If you deliberately changed
 what the world looks like, the fingerprint *should* move. Re-bless it in the
