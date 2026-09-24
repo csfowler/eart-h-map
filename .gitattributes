@@ -1,0 +1,28 @@
+# Binary payloads. Never line-ending-converted, never diffed.
+*.tif      binary
+*.tiff     binary
+*.vrt.ovr  binary
+*.rds      binary
+*.RData    binary
+*.rdata    binary
+*.gpkg     binary
+*.jpg      binary
+*.jpeg     binary
+*.png      binary
+*.zip      binary
+
+# Text.
+*.R        text
+*.Rmd      text
+*.qmd      text
+*.vrt      text
+*.md       text
+*.csv      text
+*.geojson  text
+*.json     text
+*.html     text
+*.css      text
+*.js       text
+*.bat      text eol=crlf
+*.ps1      text eol=crlf
+*.sh       text eol=lf

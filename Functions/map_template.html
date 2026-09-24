@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{TITLE}}</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Uncial+Antiqua&family=Almendra:ital,wght@0,400;0,700;1,400;1,700&family=IM+Fell+English:ital@0;1&family=MedievalSharp&display=swap">
+<style>
+:root {
+  --ink: #2c1810;
+  --ink-soft: #4a3c2a;
+  --ink-fade: #6b5344;
+  --bronze: #8b7355;
+  --bronze-dark: #5c4a32;
+  --gold: #c9a86c;
+  --gold-bright: #d4a84b;
+  --gold-deep: #8b6914;
+  --parch-1: #f5e6c8;
+  --parch-2: #e8d4a8;
+  --parch-3: #ddc596;
+  --parch-deep: #c9b07a;
+  --vellum: #fffaee;
+  --burgundy: #8B0000;
+  --sienna: #a0522d;
+  --verdigris: #3a5a40;
+  --water: #2166ac;
+  --water-light: #4a7a9c;
+  --shadow: rgba(44,24,16,0.35);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; width:100%; overflow:hidden; font-family:"Almendra",serif; color:var(--ink); }
+
+body {
+  background:
+    radial-gradient(ellipse at top left, #2c1810 0%, #0a0604 100%);
+}
+
+/* === MAP === */
+#map {
+  position:absolute; top:0; left:0; right:0; bottom:0;
+  background:#264c80;
+}
+
+/* Vignette over the map */
+#vignette {
+  pointer-events:none;
+  position:absolute; inset:0; z-index:400;
+  box-shadow: inset 0 0 220px rgba(44,24,16,0.55), inset 0 0 60px rgba(44,24,16,0.25);
+}
+
+/* Subtle parchment texture overlay on ALL panels */
+.parchment {
+  background:
+    linear-gradient(135deg, var(--parch-1) 0%, var(--parch-2) 60%, var(--parch-3) 100%);
+  position:relative;
+}
+.parchment::before {
+  content:""; position:absolute; inset:0; pointer-events:none; opacity:0.18;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(139,115,85,0.4) 0%, transparent 4%),
+    radial-gradient(circle at 70% 60%, rgba(139,115,85,0.3) 0%, transparent 5%),
+    radial-gradient(circle at 40% 80%, rgba(92,74,50,0.3) 0%, transparent 3%),
+    radial-gradient(circle at 80% 15%, rgba(92,74,50,0.4) 0%, transparent 4%),
+    repeating-linear-gradient(45deg, transparent 0 8px, rgba(139,115,85,0.05) 8px 9px);
+  border-radius:inherit;
+}
+
+/* === TITLE CARTOUCHE === */
+#title-cartouche {
+  position:absolute; top:14px; left:50%; transform:translateX(-50%);
+  z-index:1100; padding:10px 56px 10px 56px;
+  border:3px double var(--bronze); border-radius:14px;
+  box-shadow: 0 8px 22px var(--shadow), inset 0 0 18px rgba(139,115,85,0.25);
+  font-family:"Uncial Antiqua",serif;
+  text-align:center; min-width:340px;
+  pointer-events:none;
+}
+#title-cartouche::before, #title-cartouche::after {
+  content:""; position:absolute; top:50%; transform:translateY(-50%);
+  width:30px; height:30px; opacity:0.7;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'><path d='M2,15 Q 8,4 15,15 Q 22,26 28,15 M5,12 Q 9,8 13,12 M17,18 Q 21,22 25,18' stroke='%238b7355' stroke-width='1.4' fill='none'/><circle cx='15' cy='15' r='2' fill='%23d4a84b' stroke='%235c4a32' stroke-width='0.6'/></svg>");
+}
+#title-cartouche::before { left:10px; }
+#title-cartouche::after { right:10px; transform:translateY(-50%) scaleX(-1); }
+
+#title-cartouche .title {
+  font-size:22px; color:var(--ink); letter-spacing:2px;
+  text-shadow: 1px 1px 0 rgba(255,250,238,0.7), 0 0 10px rgba(212,168,75,0.2);
+}
+#title-cartouche .subtitle {
+  font-family:"IM Fell English",serif; font-style:italic;
+  font-size:12px; color:var(--ink-fade); margin-top:2px; letter-spacing:0.5px;
+}
+
+/* === SIDE PANEL — minimal: search + hex tier === */
+#side-panel {
+  position:absolute; top:14px; right:14px; width:230px;
+  z-index:1050; padding:8px 10px;
+  border:3px double var(--bronze); border-radius:10px;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+#side-panel-body { display:flex; flex-direction:column; gap:6px; }
+
+.layer-section { margin:0; }
+.layer-section-title {
+  font-family:"Uncial Antiqua",serif; font-size:10px;
+  color:var(--ink-fade); letter-spacing:1.0px;
+  margin:2px 0; text-transform:uppercase;
+}
+.layer-row {
+  display:flex; align-items:center; padding:3px 4px;
+  font-family:"Almendra",serif; font-size:13px; color:var(--ink-soft);
+  cursor:pointer; border-radius:3px;
+}
+.layer-row:hover { background:rgba(139,115,85,0.12); }
+.layer-row input[type=checkbox] {
+  margin-right:8px; accent-color:var(--bronze-dark);
+  cursor:pointer;
+}
+.layer-row .swatch {
+  width:14px; height:8px; margin-right:6px; border:1px solid var(--bronze-dark);
+  display:inline-block; flex-shrink:0;
+}
+.layer-row .dot {
+  width:10px; height:10px; margin-right:6px; border-radius:50%;
+  border:1px solid var(--bronze-dark); flex-shrink:0;
+}
+
+.layer-slider-row {
+  display:flex; align-items:center; gap:6px; padding:3px 4px;
+  font-family:"Almendra",serif; font-size:11px; color:var(--ink-fade);
+}
+.layer-slider-row input[type=range] {
+  flex:1; accent-color:var(--bronze-dark); cursor:pointer;
+}
+.tier-select-row {
+  display:flex; align-items:center; gap:6px; padding:3px 4px;
+  font-family:"Almendra",serif; font-size:12px; color:var(--ink-soft);
+}
+.tier-select-row select {
+  flex:1; padding:2px 4px; font-family:"Almendra",serif;
+  font-size:12px; color:var(--ink); background:var(--vellum);
+  border:1px solid var(--bronze); border-radius:3px; cursor:pointer;
+}
+
+/* === SEARCH (now lives inside #side-panel) === */
+#search-input {
+  width:100%; padding:4px 6px; font-family:"IM Fell English",serif;
+  font-size:12px; color:var(--ink); background:var(--vellum);
+  border:1px solid var(--bronze); border-radius:4px; box-sizing:border-box;
+}
+#search-input::placeholder { color:var(--ink-fade); font-style:italic; }
+#search-results {
+  max-height:180px; overflow-y:auto; margin-top:3px;
+  border-top:1px solid var(--bronze); padding-top:3px; display:none;
+}
+#search-results.open { display:block; }
+.search-result {
+  padding:3px 5px; font-family:"Almendra",serif; font-size:11px;
+  color:var(--ink-soft); cursor:pointer; border-radius:3px;
+}
+.search-result:hover { background:rgba(212,168,75,0.25); color:var(--ink); }
+.search-result .small { font-size:10px; color:var(--ink-fade); margin-left:4px; }
+
+/* === COMPASS ROSE === */
+#compass {
+  position:absolute; bottom:96px; right:18px; z-index:1050;
+  width:96px; height:96px; opacity:0.92;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+  pointer-events:none;
+}
+
+/* === SCALE BAR (custom, replacing leaflet's default) === */
+.leaflet-control-scale-line {
+  background: linear-gradient(135deg, var(--parch-1), var(--parch-2)) !important;
+  border: 2px solid var(--bronze) !important; border-top: 2px solid var(--bronze) !important;
+  color: var(--ink) !important;
+  font-family: "IM Fell English", serif !important;
+  font-size: 11px !important;
+  padding: 1px 6px !important;
+  box-shadow: 0 2px 6px var(--shadow);
+}
+
+/* === LEAFLET POPUP / TOOLTIP === */
+.leaflet-container { font-family:"Almendra",serif; background:#264c80; }
+
+.leaflet-popup-content-wrapper {
+  background: linear-gradient(135deg, var(--parch-1), var(--parch-2)) !important;
+  border:2px solid var(--bronze); border-radius:8px;
+  box-shadow: 0 8px 22px var(--shadow);
+  color:var(--ink-soft);
+}
+.leaflet-popup-content {
+  margin:10px 14px; font-size:13px; line-height:1.45;
+  font-family:"IM Fell English",serif;
+}
+.leaflet-popup-content .pop-title {
+  font-family:"Uncial Antiqua",serif; font-size:16px;
+  color:var(--ink); letter-spacing:1px; display:block; margin-bottom:6px;
+  border-bottom:1px solid var(--bronze); padding-bottom:3px;
+}
+.leaflet-popup-content .pop-meta {
+  font-size:11px; color:var(--ink-fade); margin-top:4px;
+}
+.leaflet-popup-content .pop-quote {
+  font-style:italic; color:var(--ink-soft);
+  border-left:2px solid var(--gold); padding-left:8px; margin:6px 0;
+  font-size:12px;
+}
+.leaflet-popup-content .pop-link {
+  display:inline-block; margin-top:6px;
+  padding:3px 9px; background:var(--ink); color:var(--gold-bright);
+  font-family:"Almendra",serif; font-weight:bold; font-size:11px;
+  letter-spacing:0.5px; text-decoration:none; border-radius:3px;
+  border:1px solid var(--gold);
+}
+.leaflet-popup-content .pop-link:hover { background:var(--burgundy); color:var(--vellum); }
+.leaflet-popup-tip { background: var(--parch-2) !important; border:1px solid var(--bronze); }
+
+/* Settlement name label (always-on at high zoom) */
+.settlement-label {
+  background:none !important; border:none !important; box-shadow:none !important;
+  font-family:"IM Fell English",serif; color:var(--ink); font-size:12px;
+  text-shadow: 1px 1px 0 rgba(255,250,238,0.95), -1px -1px 0 rgba(255,250,238,0.95),
+               1px -1px 0 rgba(255,250,238,0.95), -1px 1px 0 rgba(255,250,238,0.95);
+  font-weight:bold; white-space:nowrap;
+}
+.settlement-label.major { font-size:14px; font-family:"Almendra",serif; font-weight:bold; }
+.feature-label {
+  background:none !important; border:none !important; box-shadow:none !important;
+  font-family:"MedievalSharp",cursive; color:var(--ink-soft);
+  font-style:italic; font-size:13px;
+  text-shadow: 1px 1px 0 rgba(255,250,238,0.85), -1px -1px 0 rgba(255,250,238,0.85);
+}
+.feature-label.region {
+  font-family:"Uncial Antiqua",serif; font-style:normal;
+  letter-spacing:3px; font-size:14px; color:var(--ink); text-transform:uppercase;
+  opacity:0.65;
+}
+.feature-label.river { color:var(--water); }
+.feature-label.forest { color:var(--verdigris); }
+/* Canon geographic names (FeatureNamer): rivers, lakes, ranges. */
+.geo-label {
+  background:none !important; border:none !important; box-shadow:none !important;
+  font-family:"IM Fell English",serif; white-space:nowrap;
+  text-shadow: 1px 1px 0 rgba(255,250,238,0.9), -1px -1px 0 rgba(255,250,238,0.9),
+               1px -1px 0 rgba(255,250,238,0.9), -1px 1px 0 rgba(255,250,238,0.9);
+  transform: translate(-50%, -50%);
+}
+.geo-label.geo-river { color:var(--water); font-style:italic; font-size:12px; }
+.geo-label.geo-lake  { color:var(--water); font-style:italic; font-size:13px; }
+.geo-label.geo-range {
+  font-family:"Uncial Antiqua",serif; letter-spacing:4px; text-transform:uppercase;
+  color:var(--ink-soft); font-size:13px; opacity:0.75;
+}
+.geo-tip {
+  background: rgba(245,230,200,0.95); border:1px solid var(--bronze);
+  font-family:"IM Fell English",serif; font-style:italic; color:var(--water);
+}
+
+/* === LEAFLET ZOOM CONTROL === */
+.leaflet-control-zoom a {
+  background: linear-gradient(135deg, var(--parch-1), var(--parch-2)) !important;
+  border: 2px solid var(--bronze) !important; color: var(--ink) !important;
+  font-family:"Uncial Antiqua",serif; font-weight:bold;
+  box-shadow: 0 2px 6px var(--shadow);
+}
+.leaflet-control-zoom a:hover { background: var(--parch-3) !important; }
+.leaflet-control-attribution {
+  background: rgba(245,230,200,0.85) !important;
+  font-family:"IM Fell English",serif; font-style:italic;
+  font-size:10px; color:var(--ink-fade);
+}
+
+/* === LIGHTBOX === */
+#lightbox {
+  position:fixed; inset:0; z-index:5000; display:none;
+  background: rgba(20,12,8,0.92); align-items:center; justify-content:center;
+  padding:30px;
+}
+#lightbox.open { display:flex; }
+#lightbox-frame {
+  position:relative;
+  border:6px double var(--bronze); border-radius:10px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 80px rgba(212,168,75,0.15);
+  background: linear-gradient(135deg, var(--parch-1), var(--parch-3));
+  padding:14px;
+  max-width:90vw; max-height:90vh; display:flex; flex-direction:column;
+}
+#lightbox-title {
+  font-family:"Uncial Antiqua",serif; font-size:18px; color:var(--ink);
+  text-align:center; letter-spacing:2px; margin-bottom:8px;
+}
+#lightbox-img {
+  max-width:100%; max-height:78vh; object-fit:contain;
+  border:2px solid var(--bronze-dark); display:block;
+}
+#lightbox-close {
+  position:absolute; top:-14px; right:-14px;
+  width:34px; height:34px; border-radius:50%;
+  background: var(--burgundy); border:2px solid var(--gold);
+  color:var(--vellum); font-family:"Uncial Antiqua",serif;
+  font-size:18px; cursor:pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  display:flex; align-items:center; justify-content:center;
+}
+#lightbox-close:hover { background: var(--ink); }
+
+/* === LOADING NOTICE === */
+#loading {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  z-index:2000; padding:18px 30px;
+  border:3px double var(--bronze); border-radius:8px;
+  font-family:"Uncial Antiqua",serif; font-size:15px; color:var(--ink);
+  letter-spacing:1.5px;
+}
+#loading.gone { display:none; }
+
+/* Sacred site icon styling */
+.sacred-icon {
+  border-radius:50%; border:1.5px solid var(--ink);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
+/* Sacred-site glyph — heavy plus, anchored at center, renders cleanly
+   over any tile background. Color/size set inline per tier. */
+.sacred-glyph {
+  font-family: "Cardo","Almendra","Cormorant Garamond",serif;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 0 1px #ffffffbb, 0 0 2px #00000044;
+  user-select: none;
+}
+.poi-marker {
+  background: var(--burgundy); border:2px solid var(--gold);
+  width:14px; height:14px; border-radius:50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+}
+.poi-marker::after {
+  content:""; position:absolute; top:3px; left:3px;
+  width:6px; height:6px; background: var(--gold-bright); border-radius:50%;
+}
+/* Hidden-from-players POI — only rendered in GM view, visually flagged. */
+.poi-marker.hidden {
+  border-style: dashed; opacity: 0.55;
+  background: rgba(139,0,0,0.55);
+}
+.feature-hidden { opacity: 0.45 !important; }
+#gm-toggle-label { user-select: none; font-size: 12px; }
+#gm-toggle-row.player-mode #gm-toggle-label { color: #8b6f47; font-style: italic; }
+
+/* Settlement marker — illuminated */
+.settlement-marker {
+  border:1.5px solid var(--ink); box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+}
+.settlement-marker.has-inkarnate { box-shadow: 0 0 0 2px var(--burgundy), 0 2px 5px rgba(0,0,0,0.4); }
+
+/* Continent owners would label */
+.continent-label {
+  background:none !important; border:none !important; box-shadow:none !important;
+  font-family:"Uncial Antiqua",serif; font-size:24px; letter-spacing:8px;
+  color: var(--ink); opacity:0.18; text-transform:uppercase;
+  text-shadow: 2px 2px 0 rgba(255,250,238,0.4);
+  pointer-events:none;
+}
+
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="vignette"></div>
+
+<div id="title-cartouche" class="parchment">
+  <div class="title">{{TITLE}}</div>
+  <div class="subtitle">{{SUBTITLE}}</div>
+</div>
+
+<div id="side-panel" class="parchment">
+  <div id="side-panel-body">
+    <input id="search-input" placeholder="Seek a place by name…" autocomplete="off"/>
+    <div id="search-results"></div>
+    <div class="layer-section">
+      <div class="tier-select-row"><span>Hex tier</span>
+        <select id="hex-tier">
+          <option value="">— off —</option>
+          {{HEX_TIER_OPTIONS}}
+        </select>
+      </div>
+      <label class="layer-row" id="gm-toggle-row" title="Hidden POIs render dashed in GM view, are removed entirely in Player view.">
+        <input type="checkbox" id="gm-toggle" checked>
+        <span id="gm-toggle-label">GM view (sees hidden POIs)</span>
+      </label>
+    </div>
+  </div>
+</div>
+
+<div id="compass">
+  <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="goldG" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#d4a84b"/><stop offset="100%" stop-color="#8b6914"/>
+      </linearGradient>
+      <linearGradient id="parchG" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#f5e6c8"/><stop offset="100%" stop-color="#e8d4a8"/>
+      </linearGradient>
+      <radialGradient id="centerG"><stop offset="0%" stop-color="#d4a84b"/><stop offset="100%" stop-color="#5c4a32"/></radialGradient>
+    </defs>
+    <circle cx="50" cy="50" r="48" fill="url(#parchG)" stroke="#8b7355" stroke-width="1.6"/>
+    <circle cx="50" cy="50" r="44" fill="none" stroke="#c9a86c" stroke-width="0.6"/>
+    <circle cx="50" cy="50" r="36" fill="none" stroke="#8b7355" stroke-width="0.4" stroke-dasharray="1 2"/>
+    <polygon points="50,4 46,46 50,38 54,46" fill="url(#goldG)" stroke="#5c4a32" stroke-width="0.5"/>
+    <polygon points="50,96 46,54 50,62 54,54" fill="#8b7355" stroke="#5c4a32" stroke-width="0.5"/>
+    <polygon points="4,50 46,46 38,50 46,54" fill="#8b7355" stroke="#5c4a32" stroke-width="0.5"/>
+    <polygon points="96,50 54,46 62,50 54,54" fill="#8b7355" stroke="#5c4a32" stroke-width="0.5"/>
+    <polygon points="20,20 44,44 40,40" fill="#c9a86c" stroke="#5c4a32" stroke-width="0.3"/>
+    <polygon points="80,20 56,44 60,40" fill="#c9a86c" stroke="#5c4a32" stroke-width="0.3"/>
+    <polygon points="20,80 44,56 40,60" fill="#c9a86c" stroke="#5c4a32" stroke-width="0.3"/>
+    <polygon points="80,80 56,56 60,60" fill="#c9a86c" stroke="#5c4a32" stroke-width="0.3"/>
+    <circle cx="50" cy="50" r="7" fill="url(#centerG)" stroke="#2c1810" stroke-width="0.6"/>
+    <circle cx="50" cy="50" r="2.5" fill="#2c1810"/>
+    <text x="50" y="18" text-anchor="middle" font-family="Uncial Antiqua,serif" font-size="11" fill="#2c1810" font-weight="bold">N</text>
+    <text x="50" y="91" text-anchor="middle" font-family="Uncial Antiqua,serif" font-size="9" fill="#5c4a32">S</text>
+    <text x="13" y="54" text-anchor="middle" font-family="Uncial Antiqua,serif" font-size="9" fill="#5c4a32">W</text>
+    <text x="87" y="54" text-anchor="middle" font-family="Uncial Antiqua,serif" font-size="9" fill="#5c4a32">E</text>
+  </svg>
+</div>
+
+<div id="lightbox">
+  <div id="lightbox-frame">
+    <div id="lightbox-title"></div>
+    <img id="lightbox-img" alt=""/>
+    <button id="lightbox-close">×</button>
+  </div>
+</div>
+
+<div id="loading" class="parchment">Unrolling the parchment…</div>
+
+<!-- ========== INLINE DATA ========== -->
+<script>
+window.MAP_CONFIG = {{MAP_CONFIG}};
+window.SETTLEMENTS = {{SETTLEMENTS_JSON}};
+window.ROADS = {{ROADS_JSON}};
+window.SACRED = {{SACRED_JSON}};
+window.HEX_TIERS = {{HEX_TIERS_JSON}};
+window.HEX_TIER_FILES = {{HEX_TIER_FILES_JSON}};
+window.FEATURES = {{FEATURES_JSON}};
+window.POIS = {{POIS_JSON}};
+window.RIVERS_MANIFEST = {{RIVERS_JSON}};   // {url: "data/rivers.geojson"}
+window.CONTINENT_LABELS = {{CONTINENT_LABELS_JSON}};
+</script>
+
+<!-- ========== APP CODE ========== -->
+<script>
+(function(){
+  var cfg = window.MAP_CONFIG;
+
+  var map = L.map("map", {
+    center: cfg.center, zoom: cfg.zoom,
+    minZoom: cfg.minZoom, maxZoom: cfg.maxZoom,
+    worldCopyJump: true, attributionControl: true, zoomControl: true
+  });
+
+  // ===== Base layer (always-on) =====
+  // updateWhenZooming:false + updateWhenIdle:true — CRITICAL for the procedural
+  // server: without them Leaflet fires a tile request for every level the zoom
+  // animation passes THROUGH (z9,z10,z11...), so a fast z8->z12 zoom enqueues
+  // several viewport-fulls of ~1-3s procedural renders on a single-threaded
+  // plumber server, and the now-useless intermediate tiles grind ahead of the
+  // ones you actually landed on -> the "zoom fast = hang". With these, Leaflet
+  // waits for the zoom to SETTLE and requests only the final level's viewport.
+  // keepBuffer:1 trims the off-screen ring of speculative renders.
+  L.tileLayer("tiles/elevation/{z}/{x}/{y}.png", {
+    tms:true, maxNativeZoom: cfg.tile.elevationMax, maxZoom: cfg.maxZoom,
+    opacity: 1.0, updateWhenZooming: false, updateWhenIdle: true, keepBuffer: 1,
+    attribution: "EART-H — chronicle of C. Ezra Stiles"
+  }).addTo(map);
+
+  // ===== Layer groups =====
+  // All canvas-rendered overlays share ONE renderer. Leaflet canvas
+  // intercepts clicks at the canvas level; with multiple stacked canvases,
+  // only the topmost one's hit-testing fires. Sharing avoids the issue
+  // and lets us control z-order purely by .addTo(map) call sequence below.
+  var overlayCanvas = L.canvas({padding: 0.5});
+
+  // Vector rivers — three tiers (big / med / small) loaded lazily based
+  // on zoom. Big tier loads immediately; med at z>=6; small at z>=8.
+  // All three share the same overlayCanvas so layering is correct and
+  // performance is good even at the small tier.
+  function tierWeight(tier){
+    return tier === "big" ? 2.0 : (tier === "med" ? 1.2 : 0.6);
+  }
+  // Tier colours all match the lake-fill (#3a648c) so that rivers
+  // crossing into lakes blend seamlessly. Weight + opacity carry the
+  // tier differentiation instead of hue.
+  // Rivers are interactive so hovering shows the river's name (FeatureNamer
+  // writes `name` + `river_id` into the tier GeoJSONs).
+  function riverEach(f, lyr){
+    if (f.properties && f.properties.name) {
+      lyr.bindTooltip(f.properties.name, { sticky:true, direction:"top",
+                                           className:"geo-tip" });
+    }
+  }
+  var RIVER_BLUE = "#3e6896";   // matches the tile water family (MapBuilder ramp)
+  var riversLayers = {
+    big:   L.geoJSON(null, { renderer: overlayCanvas, onEachFeature: riverEach,
+            style: { color:RIVER_BLUE, weight:tierWeight("big"), opacity:0.95,
+                     lineJoin:"round", lineCap:"round" } }).addTo(map),
+    med:   L.geoJSON(null, { renderer: overlayCanvas, onEachFeature: riverEach,
+            style: { color:RIVER_BLUE, weight:tierWeight("med"), opacity:0.85,
+                     lineJoin:"round", lineCap:"round" } }),
+    small: L.geoJSON(null, { renderer: overlayCanvas, onEachFeature: riverEach,
+            style: { color:RIVER_BLUE, weight:tierWeight("small"), opacity:0.75,
+                     lineJoin:"round", lineCap:"round" } })
+  };
+  // One permanent label per named BIG river, placed at the midpoint of the
+  // river's longest chained feature. Top-N by flow per zoom (see riverMaxLabels); they
+  // survive past the vector cap (procedural raster rivers still need names).
+  var riverLabelLayer = L.layerGroup();
+  var riverLabelBest = {};   // river_id -> {len, flow, latlng, name}
+  var riverLabelRanked = []; // sorted by flow desc, built after harvest
+  function riverLabelHarvest(geo){
+    (geo.features || []).forEach(function(f){
+      var p = f.properties || {};
+      if (!p.name || !p.river_id || f.geometry.type !== "LineString") return;
+      var cs = f.geometry.coordinates;
+      if (cs.length < 4) return;
+      var len = 0;
+      for (var i = 1; i < cs.length; i++) {
+        len += Math.abs(cs[i][0]-cs[i-1][0]) + Math.abs(cs[i][1]-cs[i-1][1]);
+      }
+      var cur = riverLabelBest[p.river_id];
+      if (!cur || len > cur.len) {
+        var mid = cs[Math.floor(cs.length / 2)];
+        riverLabelBest[p.river_id] = { len:len, name:p.name,
+                                       flow:p.max_flow || 0,
+                                       latlng:[mid[1], mid[0]] };
+      }
+    });
+    riverLabelRanked = Object.keys(riverLabelBest).map(function(k){
+      return riverLabelBest[k];
+    }).sort(function(a, b){ return b.flow - a.flow; });
+  }
+  // SELECTIVE rendering: only the top-N rivers by trunk flow label at each
+  // zoom, and only within the padded viewport — 900 permanent labels at z8
+  // buried the map.
+  function riverMaxLabels(z){
+    if (z < 7)  return 0;
+    if (z === 7)  return 25;
+    if (z === 8)  return 70;
+    if (z === 9)  return 180;
+    if (z === 10) return 400;
+    return Infinity;
+  }
+  function rebuildRiverLabels(){
+    riverLabelLayer.clearLayers();
+    var z = map.getZoom(), maxN = riverMaxLabels(z);
+    if (maxN <= 0) return;
+    var bb = map.getBounds().pad(0.25);
+    var placed = 0;
+    for (var i = 0; i < riverLabelRanked.length && placed < maxN; i++) {
+      var b = riverLabelRanked[i];
+      if (!bb.contains(b.latlng)) continue;
+      placed++;
+      L.marker(b.latlng, {
+        icon: L.divIcon({ className:"geo-label geo-river", html:b.name, iconSize:null }),
+        interactive:false, keyboard:false
+      }).addTo(riverLabelLayer);
+    }
+  }
+  var riversLoaded = { big:false, med:false, small:false };
+  function loadRiverTier(tier){
+    if (riversLoaded[tier]) return;
+    var m = window.RIVERS_MANIFEST && window.RIVERS_MANIFEST[tier];
+    if (!m || !m.url) return;
+    if (location.protocol === "file:") {
+      console.warn("Rivers (" + tier + ") can't load from file://; serve via start-map.bat");
+      riversLoaded[tier] = true;  // give up; don't keep trying
+      return;
+    }
+    riversLoaded[tier] = true;
+    fetch(m.url)
+      .then(function(r){ return r.json(); })
+      .then(function(geo){
+        riversLayers[tier].addData(geo);
+        if (tier !== "big" && !map.hasLayer(riversLayers[tier])) {
+          riversLayers[tier].addTo(map);
+        }
+        if (tier === "big") { riverLabelHarvest(geo); rebuildRiverLabels(); applyGeoLabels(); }
+      })
+      .catch(function(e){
+        riversLoaded[tier] = false;   // allow retry
+        console.warn("rivers " + tier + " fetch failed:", e);
+      });
+  }
+  // Kick off big tier immediately; med/small triggered by zoom.
+  loadRiverTier("big");
+  function maybeLoadByZoom(){
+    var z = map.getZoom();
+    for (var t in window.RIVERS_MANIFEST) {
+      var entry = window.RIVERS_MANIFEST[t];
+      if (entry && z >= (entry.min_zoom || 0)) loadRiverTier(t);
+    }
+  }
+  map.on("zoomend", maybeLoadByZoom);
+  maybeLoadByZoom();
+
+  // Roads — above rivers, below markers.
+  var roadsLayer = L.geoJSON(null, {
+    renderer: overlayCanvas,
+    style: function(f){
+      return f.properties.is_ferry ?
+        { color:"#3a5474", weight:1.4, opacity:0.85, dashArray:"3 4" } :
+        { color:"#5c3a1e", weight:1.6, opacity:0.85 };
+    }
+  }).addTo(map);
+  if (window.ROADS) roadsLayer.addData(window.ROADS);
+
+  // The procedural high-zoom tiles draw roads + rivers INTO the raster, so the
+  // crisp Leaflet vector overlays are capped at the native tile zoom to avoid
+  // drawing them twice. When procedural tiles are disabled (elevationMax<=8)
+  // the cap is the max zoom, i.e. the vectors are never hidden.
+  var VECTOR_FEATURE_MAX = (cfg.tile && cfg.tile.elevationMax > 8) ? 8 : cfg.maxZoom;
+  function capVectorFeatures(){
+    var hi = map.getZoom() > VECTOR_FEATURE_MAX;
+    [roadsLayer, riversLayers.big, riversLayers.med, riversLayers.small].forEach(function(lyr){
+      if (!lyr) return;
+      var hasData = lyr.getLayers && lyr.getLayers().length > 0;
+      if (hi && map.hasLayer(lyr)) map.removeLayer(lyr);
+      else if (!hi && !map.hasLayer(lyr) && hasData) map.addLayer(lyr);
+    });
+  }
+  map.on("zoomend", capVectorFeatures);
+  capVectorFeatures();
+
+  // --- Canon geographic names (FeatureNamer): lakes + mountain ranges ------
+  // Loaded from data/named_features.geojson; river labels are built from the
+  // big-tier river GeoJSON above. Zoom gates: ranges are continental-scale
+  // (z4+), lakes regional (z6+, the largest at z5+), rivers z8+.
+  var geoLabelLayer = L.layerGroup();
+  var geoLabelPts = { lake:[], range:[] };     // each sorted by size desc
+  fetch("data/named_features.geojson")
+    .then(function(r){ return r.json(); })
+    .then(function(geo){
+      (geo.features || []).forEach(function(f){
+        var c = f.geometry.coordinates;
+        var p = { type:f.properties.type, name:f.properties.name,
+                  size:f.properties.size || 0, latlng:[c[1], c[0]] };
+        if (geoLabelPts[p.type]) geoLabelPts[p.type].push(p);
+      });
+      for (var t in geoLabelPts)
+        geoLabelPts[t].sort(function(a, b){ return b.size - a.size; });
+      rebuildGeoLabels(); applyGeoLabels();
+    })
+    .catch(function(e){ console.warn("named_features fetch failed:", e); });
+  // SELECTIVE rendering: top-N by size at each zoom, viewport-culled.
+  function geoMaxLabels(type, z){
+    if (type === "range") {
+      if (z < 4)  return 0;
+      if (z === 4) return 12; if (z === 5) return 30; if (z === 6) return 60;
+      return Infinity;
+    }
+    if (z < 5)  return 0;
+    if (z === 5) return 18; if (z === 6) return 60;
+    if (z === 7) return 150; if (z === 8) return 320;
+    return Infinity;                                  // lakes
+  }
+  function rebuildGeoLabels(){
+    geoLabelLayer.clearLayers();
+    var z = map.getZoom();
+    var bb = map.getBounds().pad(0.25);
+    for (var t in geoLabelPts) {
+      var maxN = geoMaxLabels(t, z), placed = 0;
+      var pts = geoLabelPts[t];
+      for (var i = 0; i < pts.length && placed < maxN; i++) {
+        if (!bb.contains(pts[i].latlng)) continue;
+        placed++;
+        L.marker(pts[i].latlng, {
+          icon: L.divIcon({ className:"geo-label geo-" + t, html:pts[i].name, iconSize:null }),
+          interactive:false, keyboard:false
+        }).addTo(geoLabelLayer);
+      }
+    }
+  }
+  function applyGeoLabels(){
+    var z = map.getZoom();
+    var geoOn   = !featureLabelsManuallyOff && z >= 4;
+    var riverOn = !featureLabelsManuallyOff && z >= 7;
+    if (geoOn && !map.hasLayer(geoLabelLayer)) map.addLayer(geoLabelLayer);
+    if (!geoOn && map.hasLayer(geoLabelLayer)) map.removeLayer(geoLabelLayer);
+    if (riverOn && !map.hasLayer(riverLabelLayer)) map.addLayer(riverLabelLayer);
+    if (!riverOn && map.hasLayer(riverLabelLayer)) map.removeLayer(riverLabelLayer);
+  }
+  function refreshGeoLabels(){ rebuildGeoLabels(); rebuildRiverLabels(); applyGeoLabels(); }
+  map.on("zoomend", refreshGeoLabels);
+  map.on("moveend", refreshGeoLabels);
+
+  // Custom annotated features (rivers/lakes/forests/regions/mountains).
+  // Labels are high-zoom only — they crowded the world view at z<=4 even
+  // with sparse features. Show only at z >= FEATURE_LABEL_MIN_ZOOM, and
+  // honor the sidebar checkbox (featureLabelsManuallyOff).
+  var FEATURE_LABEL_MIN_ZOOM = 7;
+  var featureLabelsManuallyOff = false;
+  var featuresLayer = L.geoJSON(null, {
+    filter: function(f){
+      // Player view drops hidden features from the rendered layer entirely;
+      // GM view keeps them (styled at half opacity below).
+      var hidden = !!(f.properties && f.properties.hidden);
+      return window.gmView || !hidden;
+    },
+    style: function(f){
+      var p = f.properties;
+      var hidden = !!(p && p.hidden);
+      return {
+        color: p.style_color || "#8b7355",
+        weight: p.style_weight || 2,
+        opacity: hidden ? 0.45 : 0.85,
+        fillColor: p.style_color || "#8b7355",
+        fillOpacity: hidden ? 0.08 : 0.18,
+        dashArray: hidden ? "4,4" : null
+      };
+    },
+    onEachFeature: function(f, lyr){
+      var p = f.properties || {};
+      var name = p.name || "";
+      if (!name) return;
+      var cls = "feature-label";
+      if (p.feature_type === "river")  cls += " river";
+      if (p.feature_type === "forest") cls += " forest";
+      if (p.feature_type === "region") cls += " region";
+      if (p.hidden) cls += " feature-hidden";
+      lyr.bindTooltip(name + (p.hidden ? " (hidden)" : ""),
+                      {permanent:true, direction:"center", className:cls});
+    }
+  }).addTo(map);
+  function renderFeatures(){
+    featuresLayer.clearLayers();
+    if (window.FEATURES) featuresLayer.addData(window.FEATURES);
+  }
+  renderFeatures();
+
+  function applyFeatureLabelVisibility(){
+    var z = map.getZoom();
+    var on = !featureLabelsManuallyOff && (z >= FEATURE_LABEL_MIN_ZOOM);
+    featuresLayer.eachLayer(function(l){
+      var t = l.getTooltip(); if (!t) return;
+      var el = t.getElement();
+      if (el) el.style.display = on ? "" : "none";
+    });
+  }
+  applyFeatureLabelVisibility();
+  map.on("zoomend", applyFeatureLabelVisibility);
+
+  // Continent / world labels (always-on, faded)
+  var continentLabelLayer = L.layerGroup().addTo(map);
+  (window.CONTINENT_LABELS || []).forEach(function(lbl){
+    L.marker([lbl.lat, lbl.lon], {
+      icon: L.divIcon({className:"continent-label", html:lbl.name, iconSize:null}),
+      interactive:false, keyboard:false
+    }).addTo(continentLabelLayer);
+  });
+
+  // Settlements — canvas-rendered; per-continent population rank drives the
+  // filter so the world view stays sparse even though there are 43 cities
+  // (showing all of them clutters tiny continents). 10 continents × N gives
+  // the visible count at each zoom:
+  //   z<=2: rank ≤ 1   ( ~10 — top city per continent)
+  //   z=3:  rank ≤ 3   ( ~30 — three largest per continent)
+  //   z=4:  rank ≤ 5   ( ~50 — five largest per continent, "continent view")
+  //   z=5:  rank ≤ 12  (~120)
+  //   z=6:  rank ≤ 30  (~300)
+  //   z=7:  rank ≤ 75  (~750)
+  //   z=8:  rank ≤ 200 (effectively all in any continent except the largest)
+  //   z>=9: all 1,326 nodes
+  function maxRankAt(z){
+    if (z >= 9) return Infinity;
+    if (z >= 8) return 200;
+    if (z >= 7) return 75;
+    if (z >= 6) return 30;
+    if (z >= 5) return 12;
+    if (z >= 4) return 5;
+    if (z >= 3) return 3;
+    return 1;
+  }
+
+  function settlementRadius(s){
+    var t = s.tier || 1;
+    return [3, 4, 5.5, 7, 9.5][t-1];
+  }
+  function settlementColor(s){
+    if (s.has_inkarnate) return "#fffaee";
+    if (s.tier >= 5) return "#d4a84b";   // city — gold
+    if (s.tier >= 4) return "#e8d4a8";   // town — pale gold
+    if (s.tier >= 3) return "#fffaee";   // village — vellum
+    if (s.tier >= 2) return "#f5e6c8";   // hamlet — parchment
+    return "#c9b07a";                    // settlement — dim parchment
+  }
+  function settlementWeight(s){
+    if (s.has_inkarnate) return 2;
+    return s.tier >= 4 ? 1.8 : 1.2;
+  }
+  function settlementBorder(s){
+    return s.has_inkarnate ? "#8B0000" : "#2c1810";
+  }
+  function labelClass(s){
+    if (s.tier >= 4) return "settlement-label major";
+    return "settlement-label";
+  }
+  // Permanent label appears only well above the tier's first-render zoom,
+  // so labels never crowd at the zoom where the dot first appears. Cities
+  // get permanent text at z=5; smaller tiers stay tooltip-only until you
+  // zoom in enough that they're spaced apart.
+  function permanentLabelAt(s){
+    return ({1: 9, 2: 8, 3: 7, 4: 6, 5: 5})[s.tier] || 9;
+  }
+
+  // Aliases for clarity; all overlays share overlayCanvas (declared up top
+  // with the rivers layer). One canvas = one hit-test pass = working
+  // popups for every interactive layer on it.
+  var settlementsCanvas = overlayCanvas;
+  var sacredCanvas      = overlayCanvas;
+  var settlementsLayer = L.layerGroup().addTo(map);
+  var settlementStatus = document.getElementById("settlement-status");
+
+  function renderSettlements(){
+    settlementsLayer.clearLayers();
+    var z = map.getZoom();
+    var maxRank = maxRankAt(z);
+    var settlements = (window.SETTLEMENTS || []);
+    var shown = 0;
+    settlements.forEach(function(s){
+      if ((s.continent_rank || 9999) > maxRank) return;
+      shown++;
+      var radius = settlementRadius(s);
+      var marker = L.circleMarker([s.lat, s.lon], {
+        renderer: settlementsCanvas,
+        radius: radius,
+        fillColor: settlementColor(s),
+        color: settlementBorder(s),
+        weight: settlementWeight(s),
+        fillOpacity: 0.95,
+        interactive: true,
+        bubblingMouseEvents: false
+      });
+      var popup = '<span class="pop-title">' + (s.name || ("Settlement " + s.id)) + '</span>' +
+        '<div class="pop-meta">';
+      if (s.population) popup += 'Folk: ' + s.population.toLocaleString() + '<br>';
+      if (s.continent)  popup += 'Continent: ' + s.continent + '<br>';
+      var rank = ["settlement","hamlet","village","town","city"][s.tier - 1] || "settlement";
+      popup += 'Rank: ' + rank;
+      if (s.coastal)    popup += ' &middot; coastal';
+      if (s.on_river)   popup += ' &middot; riverside';
+      if (s.is_port)    popup += ' &middot; port';
+      popup += '</div>';
+      if (s.inkarnate) {
+        popup += '<a href="#" class="pop-link" data-inkarnate="' + s.inkarnate +
+                 '" data-title="' + (s.name || s.id) + '">View detail map</a>';
+      }
+      marker.bindPopup(popup);
+      if (s.name) {
+        marker.bindTooltip(s.name, {
+          direction:"top",
+          offset:[0, -radius - 2],
+          className: labelClass(s),
+          permanent: z >= permanentLabelAt(s)
+        });
+      }
+      marker.addTo(settlementsLayer);
+    });
+    var rankLabel = (maxRank === Infinity) ? "all" : ("rank ≤ " + maxRank);
+    if (settlementStatus) {
+      settlementStatus.textContent = shown.toLocaleString() + " of " +
+        settlements.length.toLocaleString() + " · " + rankLabel +
+        " per continent at zoom " + z;
+    }
+  }
+  renderSettlements();
+  map.on("zoomend", renderSettlements);
+
+  // POIs (annotation features with feature_type === "poi").
+  // window.gmView controls whether hidden POIs are visible at all. When
+  // gmView is true (default), hidden POIs render dashed + faded so the GM
+  // can see them while prepping. When false (player view), hidden POIs
+  // are removed entirely — not just hidden via CSS — so devtools can't
+  // surface them either.
+  window.gmView = true;
+  var poisLayer = L.layerGroup().addTo(map);
+  function renderPOIs(){
+    poisLayer.clearLayers();
+    (window.POIS || []).forEach(function(p){
+      var isHidden = !!p.hidden;
+      if (isHidden && !window.gmView) return;  // player view: drop entirely
+      var cls = "poi-marker" + (isHidden ? " hidden" : "");
+      var marker = L.marker([p.lat, p.lon], {
+        icon: L.divIcon({
+          className: "",
+          html: '<div class="' + cls + '"></div>',
+          iconSize:[14,14], iconAnchor:[7,14]
+        })
+      });
+      var title = (p.name || "Place of Interest") +
+                  (isHidden ? ' <span style="color:#b71c1c;font-size:10px">(hidden)</span>' : '');
+      var popup = '<span class="pop-title">' + title + '</span>';
+      if (p.description) popup += '<div>' + p.description + '</div>';
+      if (p.inkarnate)   popup += '<a href="#" class="pop-link" data-inkarnate="' + p.inkarnate + '" data-title="' + (p.name || "Place") + '">View detail map</a>';
+      marker.bindPopup(popup);
+      if (p.name) marker.bindTooltip(p.name, {direction:"top", offset:[0,-14], className:"settlement-label"});
+      marker.addTo(poisLayer);
+    });
+  }
+  renderPOIs();
+
+  // Sacred sites — canvas-rendered circleMarkers with per-tier buckets so
+  // zoom transitions only add/remove whole tier groups (O(9)) rather than
+  // teardown+recreate ~20k markers (O(N)). 19,928 sites are built once at
+  // load (~200 ms); after that pan/zoom touch only the canvas redraw,
+  // which is handled by Leaflet's renderer in one pass.
+  // sacredCanvas alias was set earlier (shared with settlementsCanvas);
+  // see the comment above the settlementsCanvas declaration.
+  var sacredStatus = document.getElementById("sacred-status");
+
+  function sacredColor(tier){
+    return ["#2f4f4f","#f5f5dc","#a0522d","#708090",
+            "#8b4513","#b87333","#cd7f32","#c0c0c0","#d4a84b"][tier-1] || "#888";
+  }
+  function sacredRadius(tier){ return 1.4 + tier * 0.45; }  // 1.85..5.45 px
+
+  // Strict zoom-implied minimum tier (no toggle). 19,928 sites total over
+  // 9 tiers, top-heavy (tier 9 = golden fountain, ~1 per continent).
+  //   z<=2: tier 9 only
+  //   z=3:  tier 8+
+  //   z=4:  tier 7+
+  //   z=5:  tier 6+
+  //   z=6:  tier 5+
+  //   z=7:  tier 4+
+  //   z=8:  tier 3+
+  //   z>=9: all tiers
+  function sacredMinTierAt(z){
+    if (z >= 9) return 1;
+    if (z >= 8) return 3;
+    if (z >= 7) return 4;
+    if (z >= 6) return 5;
+    if (z >= 5) return 6;
+    if (z >= 4) return 7;
+    if (z >= 3) return 8;
+    return 9;
+  }
+
+  // Pre-build per-tier featureGroups once.
+  var sacredTierLayers = {};
+  var sacredTierCounts = {};
+  for (var __t = 1; __t <= 9; __t++) {
+    sacredTierLayers[__t] = L.featureGroup();
+    sacredTierCounts[__t] = 0;
+  }
+  (window.SACRED || []).forEach(function(s){
+    var marker = L.circleMarker([s.lat, s.lon], {
+      renderer: sacredCanvas,
+      radius: sacredRadius(s.tier),
+      fillColor: sacredColor(s.tier),
+      color: "#1a1410",
+      weight: 0.5,
+      fillOpacity: 0.85,
+      interactive: true,
+      bubblingMouseEvents: false
+    });
+    var p = '<span class="pop-title">Tier ' + s.tier + ' Sacred Site</span>' +
+            '<div class="pop-meta">' +
+            'Site: ' + s.id + '<br>' +
+            (s.talisman ? 'Form: ' + s.talisman + '<br>' : '') +
+            (s.status   ? 'State: ' + s.status   + '<br>' : '') +
+            '</div>';
+    if (s.quote) {
+      var qHtml = String(s.quote).replace(/--/g,' — ');
+      p += '<div class="pop-quote">' + qHtml + '</div>';
+    }
+    marker.bindPopup(p, {maxWidth: 380});
+    // Hover tooltip — short summary, complements the click-to-open popup.
+    var tipShort = "Tier " + s.tier + " · " + (s.talisman || s.id);
+    marker.bindTooltip(tipShort, {direction: "top", offset:[0,-2],
+                                  className: "settlement-label"});
+    sacredTierLayers[s.tier].addLayer(marker);
+    sacredTierCounts[s.tier]++;
+  });
+
+  function renderSacred(){
+    var z = map.getZoom();
+    var minTier = sacredMinTierAt(z);
+    var shown = 0;
+    for (var t = 1; t <= 9; t++) {
+      var lyr = sacredTierLayers[t];
+      if (t >= minTier) {
+        if (!map.hasLayer(lyr)) lyr.addTo(map);
+        shown += sacredTierCounts[t];
+      } else if (map.hasLayer(lyr)) {
+        map.removeLayer(lyr);
+      }
+    }
+    if (sacredStatus) {
+      sacredStatus.textContent = shown.toLocaleString() + " of " +
+        (window.SACRED || []).length.toLocaleString() +
+        " sites · tier ≥ " + minTier + " at zoom " + z;
+    }
+  }
+  renderSacred();
+  map.on("zoomend", renderSacred);
+
+  // Hex boundaries — canvas-rendered for low tiers (thousands of polygons)
+  var hexCanvas = overlayCanvas;
+  var hexLayer = L.geoJSON(null, {
+    renderer: hexCanvas,
+    style: { color:"#5c4a32", weight:0.8, opacity:0.55, fillColor:"#d4a84b", fillOpacity:0.05 },
+    onEachFeature: function(f, lyr){
+      lyr.bindTooltip(f.properties.hex_id || "", {direction:"top", className:"settlement-label"});
+    }
+  }).addTo(map);
+  // Hex tiers are lazy-loaded from data/hex_tier_<N>.json on first request
+  // and cached in window.HEX_TIERS, so the cold page payload no longer
+  // ships ~7 MB of polygon GeoJSON for layers usually never displayed.
+  function renderHex(){
+    hexLayer.clearLayers();
+    var hexSel = document.getElementById("hex-tier");
+    if (!hexSel) return;               // player build: the control is stripped
+    var t = hexSel.value;
+    if (!t) return;
+    window.HEX_TIERS = window.HEX_TIERS || {};
+    var cached = window.HEX_TIERS[t];
+    if (cached) { hexLayer.addData(cached); return; }
+    var url = (window.HEX_TIER_FILES || {})[t];
+    if (!url) {
+      console.warn("No HEX_TIER_FILES entry for tier", t);
+      return;
+    }
+    // file:// protocol blocks fetch() in modern browsers. The page is meant
+    // to be served via start-map.bat (python http.server on :8765). Warn the
+    // user explicitly if we detect file:// so it's not a silent dropdown.
+    if (location.protocol === "file:") {
+      var sel = document.getElementById("hex-tier");
+      sel.value = "";
+      alert("Hex tiers can't load when this page is opened directly from " +
+            "disk (file:// blocks JSON fetch). Launch the map via " +
+            "Map/start-map.bat (or start-map.ps1) and reload.");
+      return;
+    }
+    fetch(url).then(function(r){
+      if (!r.ok) throw new Error("HTTP " + r.status + " on " + url);
+      return r.json();
+    }).then(function(data){
+      window.HEX_TIERS[t] = data;
+      // user may have changed the dropdown while we were fetching
+      if (document.getElementById("hex-tier").value === t) hexLayer.addData(data);
+    }).catch(function(e){
+      console.error("hex tier load failed:", t, e);
+      alert("Could not load hex tier " + t + ":\n" + e.message +
+            "\n\nCheck the browser devtools console for details.");
+    });
+  }
+  renderHex();
+
+  // ===== Layer wiring =====
+  // Sidebar was simplified to just the hex-boundary dropdown — roads,
+  // settlements, POIs, sacred sites, ferries and feature-labels are all
+  // always-on. (Their per-zoom visibility is enforced inside their own
+  // render functions, e.g. zoomImpliedSettlementTier / sacredMinTierAt /
+  // FEATURE_LABEL_MIN_ZOOM.) Past versions had toggle checkboxes in the
+  // sidebar; if you re-add them, hook them via a tiny `toggle(id, layer)`
+  // helper here. The ONLY interactive sidebar control left is hex-tier.
+  // The player build strips several GM-only controls out of the DOM, so every
+  // handler below must tolerate its element being absent. Without the guards a
+  // single null reference throws and aborts the rest of init -- which silently
+  // leaves the "Unrolling the parchment" loader on screen forever, because the
+  // line that hides it is the last statement in this function.
+  var hexTierSel = document.getElementById("hex-tier");
+  if (hexTierSel) hexTierSel.addEventListener("change", renderHex);
+
+  // GM/Player view toggle. Defaults to GM (checked). Player view drops
+  // hidden POIs and hidden features from the rendered DOM entirely.
+  var gmToggle    = document.getElementById("gm-toggle");
+  var gmToggleRow = document.getElementById("gm-toggle-row");
+  var gmToggleLbl = document.getElementById("gm-toggle-label");
+  function applyGmToggle(){
+    if (!gmToggle) return;                 // player build: no toggle to read
+    window.gmView = !!gmToggle.checked;
+    if (gmToggleRow) gmToggleRow.classList.toggle("player-mode", !window.gmView);
+    if (gmToggleLbl) gmToggleLbl.textContent = window.gmView
+      ? "GM view (sees hidden POIs)"
+      : "Player view (hidden POIs removed)";
+    renderPOIs();
+    renderFeatures();
+  }
+  if (gmToggle) gmToggle.addEventListener("change", applyGmToggle);
+
+  // ===== Lightbox =====
+  var lb = document.getElementById("lightbox");
+  var lbImg = document.getElementById("lightbox-img");
+  var lbTitle = document.getElementById("lightbox-title");
+  function openLightbox(src, title){
+    lbImg.src = src; lbTitle.textContent = title || "";
+    lb.classList.add("open");
+  }
+  function closeLightbox(){ lb.classList.remove("open"); lbImg.src = ""; }
+  document.getElementById("lightbox-close").addEventListener("click", closeLightbox);
+  lb.addEventListener("click", function(e){ if (e.target === lb) closeLightbox(); });
+  document.addEventListener("keydown", function(e){ if (e.key === "Escape") closeLightbox(); });
+
+  // Delegate clicks inside popups for inkarnate links
+  map.on("popupopen", function(e){
+    var el = e.popup.getElement();
+    if (!el) return;
+    el.querySelectorAll("[data-inkarnate]").forEach(function(a){
+      a.addEventListener("click", function(ev){
+        ev.preventDefault();
+        openLightbox("inkarnate/" + a.dataset.inkarnate, a.dataset.title);
+      });
+    });
+  });
+
+  // ===== Search =====
+  var searchInput = document.getElementById("search-input");
+  var searchResults = document.getElementById("search-results");
+  function searchSettlements(q){
+    q = q.toLowerCase().trim();
+    if (!q) { searchResults.classList.remove("open"); searchResults.innerHTML = ""; return; }
+    var hits = (window.SETTLEMENTS || []).filter(function(s){
+      return (s.name && s.name.toLowerCase().indexOf(q) >= 0) ||
+             (("settlement " + s.id).indexOf(q) >= 0);
+    }).slice(0, 12);
+    var poiHits = (window.POIS || []).filter(function(p){
+      return p.name && p.name.toLowerCase().indexOf(q) >= 0;
+    }).slice(0, 6);
+    searchResults.innerHTML = "";
+    hits.forEach(function(s){
+      var d = document.createElement("div"); d.className = "search-result";
+      d.innerHTML = (s.name || ("Settlement " + s.id)) +
+        '<span class="small">' + (s.continent || "") +
+        (s.population ? " · " + s.population.toLocaleString() : "") + '</span>';
+      d.addEventListener("click", function(){
+        map.setView([s.lat, s.lon], Math.max(map.getZoom(), 6));
+        searchResults.classList.remove("open"); searchInput.value = s.name || "";
+      });
+      searchResults.appendChild(d);
+    });
+    poiHits.forEach(function(p){
+      var d = document.createElement("div"); d.className = "search-result";
+      d.innerHTML = '<i>' + p.name + '</i><span class="small">place of interest</span>';
+      d.addEventListener("click", function(){
+        map.setView([p.lat, p.lon], Math.max(map.getZoom(), 6));
+        searchResults.classList.remove("open"); searchInput.value = p.name;
+      });
+      searchResults.appendChild(d);
+    });
+    if (hits.length || poiHits.length) searchResults.classList.add("open");
+  }
+  searchInput.addEventListener("input", function(){ searchSettlements(this.value); });
+  searchInput.addEventListener("focus", function(){ if (this.value) searchResults.classList.add("open"); });
+  document.addEventListener("click", function(e){
+    // close the dropdown if click landed outside the side-panel (where the
+    // search input now lives)
+    if (!document.getElementById("side-panel").contains(e.target)) {
+      searchResults.classList.remove("open");
+    }
+  });
+
+  // ===== Scale bar =====
+  L.control.scale({position:"bottomleft", imperial:false, maxWidth:160}).addTo(map);
+
+  // ===== Initial =====
+  document.getElementById("loading").classList.add("gone");
+})();
+</script>
+</body>
+</html>

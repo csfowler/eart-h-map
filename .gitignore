@@ -1,0 +1,26 @@
+# Generated map artefact: tiles, inlined pages, caches. Rebuild, never commit.
+Map/
+
+# Per-machine map location override (Functions/MapRoot.R).
+.map-root
+
+# R session state.
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+.Renviron
+
+# Scratch left by an interrupted export.
+*.bak
+*.partial.tif
+*.scaled.tif
+
+# Timestamped canon backups from apply_annotations_to_canon() (the
+# editor's 'Save & push'). ~3 MB each; git history is the backup here.
+*.backup_*
+
+# OS clutter.
+.DS_Store
+Thumbs.db
+desktop.ini

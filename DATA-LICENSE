@@ -1,0 +1,20 @@
+EART-H world data
+Copyright (c) 2026 Christopher S. Fowler
+
+Except as noted below, everything under Input Data/ (rasters, settlements,
+names, roads, sacred sites, and annotations) is licensed under the Creative
+Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0).
+
+You may share and adapt it for non-commercial purposes, provided you give
+appropriate credit, link to the license, and indicate if changes were made.
+
+Full text: https://creativecommons.org/licenses/by-nc/4.0/legalcode
+
+EXCLUDED: Input Data/Inkarnate Maps/
+These detail maps were made with Inkarnate (https://inkarnate.com) and include
+Inkarnate's artwork, which is governed by Inkarnate's own terms of service,
+not by this license. They are included so the map's links work; do not reuse
+or redistribute them outside this project. Images you add to that folder are
+likewise subject to Inkarnate's terms if you made them there.
+
+The code in this repository is licensed separately under MIT; see LICENSE.

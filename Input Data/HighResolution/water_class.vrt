@@ -1,0 +1,88 @@
+<VRTDataset rasterXSize="36000" rasterYSize="15792">
+  <SRS dataAxisToSRSAxisMapping="2,1">GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AXIS["Latitude",NORTH],AXIS["Longitude",EAST],AUTHORITY["EPSG","4326"]]</SRS>
+  <GeoTransform> -1.8000000000000000e+02,  1.0000000000000000e-02,  0.0000000000000000e+00,  8.9999999999999972e+01,  0.0000000000000000e+00, -9.9999999999999985e-03</GeoTransform>
+  <VRTRasterBand dataType="Byte" band="1">
+    <NoDataValue>255</NoDataValue>
+    <ColorInterp>Gray</ColorInterp>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">../Continents/Adirondaq/water_class.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="5166" RasterYSize="6586" DataType="Byte" BlockXSize="512" BlockYSize="512" />
+      <SrcRect xOff="0" yOff="0" xSize="5166" ySize="6586" />
+      <DstRect xOff="9417" yOff="9206" xSize="5166" ySize="6586" />
+      <NODATA>255</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">../Continents/Amazonia/water_class.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="36000" RasterYSize="632" DataType="Byte" BlockXSize="512" BlockYSize="512" />
+      <SrcRect xOff="0" yOff="0" xSize="36000" ySize="632" />
+      <DstRect xOff="0" yOff="0" xSize="36000" ySize="632" />
+      <NODATA>255</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">../Continents/Banff/water_class.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="5242" RasterYSize="7902" DataType="Byte" BlockXSize="512" BlockYSize="512" />
+      <SrcRect xOff="0" yOff="0" xSize="5242" ySize="7902" />
+      <DstRect xOff="10879" yOff="5050" xSize="5242" ySize="7902" />
+      <NODATA>255</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">../Continents/Canada/water_class.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="9126" RasterYSize="4940" DataType="Byte" BlockXSize="512" BlockYSize="512" />
+      <SrcRect xOff="0" yOff="0" xSize="9126" ySize="4940" />
+      <DstRect xOff="5937" yOff="1431" xSize="9126" ySize="4940" />
+      <NODATA>255</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">../Continents/Centre/water_class.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="2596" RasterYSize="3807" DataType="Byte" BlockXSize="512" BlockYSize="512" />
+      <SrcRect xOff="0" yOff="0" xSize="2596" ySize="3807" />
+      <DstRect xOff="16702" yOff="7097" xSize="2596" ySize="3807" />
+      <NODATA>255</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">../Continents/Fingers/water_class.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="4520" RasterYSize="2520" DataType="Byte" BlockXSize="512" BlockYSize="512" />
+      <SrcRect xOff="0" yOff="0" xSize="4520" ySize="2520" />
+      <DstRect xOff="13539" yOff="11540" xSize="4520" ySize="2520" />
+      <NODATA>255</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">../Continents/Kiliman/water_class.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="2659" RasterYSize="2238" DataType="Byte" BlockXSize="512" BlockYSize="512" />
+      <SrcRect xOff="0" yOff="0" xSize="2659" ySize="2238" />
+      <DstRect xOff="23671" yOff="9881" xSize="2659" ySize="2238" />
+      <NODATA>255</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">../Continents/Salmon/water_class.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="6696" RasterYSize="3204" DataType="Byte" BlockXSize="512" BlockYSize="512" />
+      <SrcRect xOff="0" yOff="0" xSize="6696" ySize="3204" />
+      <DstRect xOff="18151" yOff="3399" xSize="6696" ySize="3204" />
+      <NODATA>255</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">../Continents/Stockholm/water_class.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="4291" RasterYSize="4735" DataType="Byte" BlockXSize="512" BlockYSize="512" />
+      <SrcRect xOff="0" yOff="0" xSize="4291" ySize="4735" />
+      <DstRect xOff="19853" yOff="7631" xSize="4291" ySize="4735" />
+      <NODATA>255</NODATA>
+    </ComplexSource>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">../Continents/Tusque/water_class.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="6694" RasterYSize="5432" DataType="Byte" BlockXSize="512" BlockYSize="512" />
+      <SrcRect xOff="0" yOff="0" xSize="6694" ySize="5432" />
+      <DstRect xOff="16153" yOff="4285" xSize="6694" ySize="5432" />
+      <NODATA>255</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+</VRTDataset>
