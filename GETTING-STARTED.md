@@ -10,18 +10,55 @@ it spent waiting, plus a long first build that you can leave running.
 
 ---
 
-## 1. Get the repository
+## 1. GitHub, and your own copy of the repository
 
-On GitHub, **fork** the repository (the button at the top right), then clone
-*your fork*. Your pull requests go from the fork. Put the clone somewhere with a
-**short path**:
+The project lives on GitHub, a website that hosts code and tracks every change
+to it. You never edit the original directly. You get your own copy (a
+**fork**), make changes there, and send them back as a **pull request**: a
+proposal the maintainer reviews and can merge. You will not need to learn the
+git commands behind this; Claude Code runs them for you (section 10). You only
+need the tools installed and signed in, once.
+
+**a. Make a GitHub account** at <https://github.com/signup>, if you do not have
+one.
+
+**b. Install git** (the version-control tool) **and the GitHub CLI** (`gh`, which
+lets Claude open pull requests and read the automatic checks for you):
+
+| | |
+|---|---|
+| **Windows** | In PowerShell: `winget install --id Git.Git -e` then `winget install --id GitHub.cli -e`. Close and reopen PowerShell afterwards. |
+| **macOS** | `xcode-select --install` (git), then `brew install gh` ([Homebrew](https://brew.sh)) |
+| **Linux** | `sudo apt install git gh` (or your distribution's equivalent) |
+
+**c. Sign in and tell git who you are**, once:
 
 ```bash
-git clone --depth 1 <your-fork-url> C:\eart-h-map      # Windows
-git clone --depth 1 <your-fork-url> ~/eart-h-map       # macOS / Linux
+gh auth login
 ```
 
-The original is at https://github.com/csfowler/eart-h-map.
+Choose **GitHub.com**, **HTTPS**, answer **Yes** to "authenticate Git with your
+GitHub credentials", then **Login with a web browser**. Then:
+
+```bash
+git config --global user.name  "Your Name"
+git config --global user.email "you@example.com"
+```
+
+Every commit you make is public and carries this name and email. If you would
+rather not publish your email, use the private address GitHub gives you under
+*Settings → Emails* (it ends in `@users.noreply.github.com`).
+
+**d. Fork and download the repository.** Put it somewhere with a **short
+path**. From the folder that will hold it (`C:\` on Windows, your home folder
+elsewhere):
+
+```bash
+gh repo fork https://github.com/csfowler/eart-h-map --clone -- --depth 1
+```
+
+That creates your fork on GitHub and downloads it into `eart-h-map`, already
+connected to both your fork and the original.
 
 > **Windows path length.** Windows refuses paths over 260 characters, and a
 > write that fails that way reports as `cannot write file`, which looks like a
@@ -196,6 +233,61 @@ suggestion is heading somewhere bad.
 > different amplitude.
 
 Then re-render a desert tile and see whether you believe it.
+
+---
+
+## 10. From an idea to a pull request
+
+Claude runs the git and GitHub commands; you decide what happens. Each piece
+of work follows the same loop. The quoted lines are the kind of thing you say
+to Claude, and your own words are fine.
+
+1. **Start fresh.** *"Sync my fork and start a new branch for desert dunes."*
+   Claude brings your fork up to date with the original, then makes a
+   **branch**: a separate line of work, so each project is its own pull request.
+   Do this every time you start something new. The original changes as other
+   people's work is merged, and starting from an old copy is how merge
+   conflicts happen.
+
+2. **Work and look.** Make the change with Claude, render tiles, look at them.
+   Run the tests (`Rscript tests/run-tests.R`, or *"run the tests"*).
+
+3. **Save a checkpoint.** *"Commit this."* A **commit** is a saved snapshot
+   with a message saying what changed and why. Claude lists the files going
+   into it first. **Read that list.** It should hold your code, and nothing
+   from `Map/` or the canon files in `Input Data/` (only
+   `Input Data/Annotations/` and new images belong there). Commit whenever
+   something works; small commits are easier to undo.
+
+4. **Send it back.** *"Open a pull request."* Claude **pushes** your branch to
+   your fork on GitHub and opens a pull request to the original, filling in
+   the template: what changed, why, and the `Expect:` line. Check what it
+   wrote, then open the link it gives you and **drag your before/after
+   screenshots into the description**. Claude cannot add images.
+
+5. **Wait for the checks.** Two checks run on the pull request (see *What
+   happens to your pull request* below); the report takes about half an hour. Ask
+   *"How are the checks doing?"* If one fails, *"Why did the checks fail?"*:
+   Claude reads the log and explains it. *"Download the map report"* fetches
+   the before/after page for you to open.
+
+6. **Respond to review.** The maintainer may ask for changes in comments on
+   the pull request. Make them on the **same branch**, then *"commit and
+   push"*: the open pull request updates itself, and the checks run again.
+
+7. **After it is merged**, go back to step 1 for the next piece of work.
+   Merged is not quite final: accepted changes are re-tested against the
+   full-precision world data before the next release, and that release
+   replaces what is in the repository.
+
+**Things to avoid:**
+
+- Working directly on `main`. Always use a branch (step 1).
+- Editing or deleting tests to make a check pass. The checks exist to catch
+  what you cannot see, and a changed test is flagged to the maintainer anyway.
+- Committing files you did not mean to change. If the list in step 3 has
+  something unexpected in it, ask Claude why before going on.
+- Very large new files. Inkarnate images over 15 MB fail the checks.
 
 ---
 
@@ -427,6 +519,15 @@ To force a re-render: `tile_path(..., force = TRUE)` for one tile, or
 
 **Everything is slow.** You only need `rebuild_tiles = TRUE` once.
 
+**Claude says `gh` is not logged in, or a push is refused.** Run
+`gh auth login` again (step 1c), then ask Claude to retry.
+
+**A merge conflict.** Your branch and the original both changed the same
+lines. Ask Claude to *"bring my branch up to date with the original and walk
+me through the conflicts"*. It will show each one and suggest a resolution;
+you decide, especially where the other change is someone else's work. Starting
+every piece of work from a synced fork (section 10, step 1) makes this rare.
+
 ## Before you hand anything back: run the tests
 
 ```bash
@@ -485,7 +586,7 @@ full-precision world data before they become canon.
 
 ## What to hand back
 
-Work on a branch of your fork and open a pull request. Include:
+A pull request from a branch of your fork (section 10). Include:
 
 - **a before/after screenshot** at the zoom where the change is visible
 - **the test output** showing `0 failed`

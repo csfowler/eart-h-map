@@ -47,6 +47,12 @@ gdal <- if (root_ok) {
 ok(!is.null(gdal), if (!is.null(gdal)) paste("GDAL command-line tools:", gdal$name)
                    else "GDAL command-line tools: see GETTING-STARTED step 4")
 
+ok(nzchar(Sys.which("git")), "git (GETTING-STARTED step 1b)")
+gh <- Sys.which("gh")
+gh_in <- nzchar(gh) && suppressWarnings(system2(gh, c("auth", "status"), stdout = FALSE, stderr = FALSE)) == 0
+ok(gh_in, if (!nzchar(gh)) "GitHub CLI 'gh' (step 1b)" else if (gh_in) "GitHub CLI 'gh', signed in"
+          else "GitHub CLI 'gh' installed but NOT signed in: run  gh auth login")
+
 py <- nzchar(Sys.which("python")) || nzchar(Sys.which("python3"))
 ok(py, "Python (only for start-map, the static player map)")
 

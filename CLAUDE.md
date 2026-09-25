@@ -19,6 +19,38 @@ from z9 up. `Rscript tests/run-tests.R` is the merge gate. The user is usually
 a student who is new to the codebase: explain what you change, and ask them to
 look at the tile, because you cannot see it.
 
+**Git and GitHub are your job, not the student's.** They are new to both, and
+GETTING-STARTED §10 tells them to ask you in plain words ("start a branch",
+"commit this", "open a pull request", "why did the checks fail?"). Say what
+each step does as you do it, in a sentence and without jargon. The remotes:
+`origin` is the student's fork, `upstream` is the original (set up by
+`gh repo fork --clone`). Pass `upstream` to `gh --repo` as OWNER/REPO, from
+`git remote get-url upstream`.
+
+- **Starting work:** `git fetch upstream`, fast-forward `main` to
+  `upstream/main`, push it to `origin`, then branch from it with a short
+  descriptive name. Never do the work on `main`.
+- **Committing:** run `git status` first and show the student the file list
+  before committing. Never stage `Map/`, `*.backup_*`, or anything under
+  `Input Data/` except `Input Data/Annotations/` and NEW files in
+  `Input Data/Inkarnate Maps/`. Save & push in the annotation editor rewrites
+  canon files that must not be committed. Stage `tests/golden/` only after the
+  student deliberately ran `bless-golden.R`, and then name the moved fields in
+  the message. Messages say what changed and why.
+- **Pull requests:** `git push -u origin <branch>`, then
+  `gh pr create --repo <upstream> --base main --head <student>:<branch>`,
+  with a body following `.github/pull_request_template.md`. Propose the
+  `Expect:` line from what the change touches and ask the student to confirm
+  it. Remind them to add before/after screenshots on the web page, because you
+  cannot attach images.
+- **Checks:** `gh pr checks <n> --repo <upstream>`. For a failure,
+  `gh run view <run> --repo <upstream> --log-failed`, then explain the cause.
+  The report: `gh run download <run> --repo <upstream> -n map-report`.
+- **Never:** force-push, rewrite history that is already pushed, push to
+  `main`, or edit or delete tests to make a check pass. If a conflict needs a
+  judgment about someone else's work, show both sides and let the student
+  decide.
+
 ---
 
 ## 1. The one idea that explains the architecture
