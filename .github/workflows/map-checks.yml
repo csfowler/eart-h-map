@@ -27,9 +27,11 @@ jobs:
     name: Conformance tests
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      EARTH_MAP_ROOT: ${{ runner.temp }}/map
     steps:
+      # The runner context is not available in job-level env, so set paths here.
+      - name: Paths
+        run: echo "EARTH_MAP_ROOT=$RUNNER_TEMP/map" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -75,10 +77,12 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    env:
-      EARTH_MAP_ROOT: ${{ runner.temp }}/map
-      REF: ${{ runner.temp }}/ref
     steps:
+      - name: Paths
+        run: |
+          echo "EARTH_MAP_ROOT=$RUNNER_TEMP/map" >> "$GITHUB_ENV"
+          echo "REF=$RUNNER_TEMP/ref" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
         with:
           path: head
