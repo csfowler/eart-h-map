@@ -37,7 +37,21 @@ CUSTOM_FEATURES_PATH  <- function() file.path(ANNOTATIONS_DIR(), "custom_feature
 SETTLEMENTS_CANON     <- function() here::here("Input Data/Combined/settlements_final.rds")
 SACRED_SITES_CANON    <- function() here::here("Input Data/Divinity/sacred_sites_attributed.RData")
 
-SETTLEMENT_NAMES_SCHEMA <- c("settlement_id", "name", "population", "inkarnate", "notes")
+# `settlement_id` is a HINT, not the key. Settlement IDs are assigned by
+# `seq_len(nrow(...))` at the end of PopBuilder's assembly, so any rebuild of
+# Ch8 renumbers every settlement and silently re-points every row in this file
+# at a different town. `lon`/`lat` are the durable anchor: a pinned place is
+# somewhere, and it is still somewhere after a rebuild. Resolution prefers the
+# id, verifies it against the coordinates, and falls back to the nearest node.
+#
+# `phonology_seed` carries the other half of permanence. NameBuilder draws a
+# community's phonology from `build_phonology(1000L + community_id)`, and
+# Louvain renumbers communities on every rebuild -- so a pinned name survives
+# while the names of every town around it change family, which reads worse
+# than losing the pin. Recording the seed lets NameBuilder re-pin the whole
+# community's phonology to the one the pinned name was drawn from.
+SETTLEMENT_NAMES_SCHEMA <- c("settlement_id", "name", "population", "inkarnate",
+                             "notes", "lon", "lat", "phonology_seed")
 
 # =============================================================================
 # SECTION 1 — settlement_names.csv (story-name overrides + inkarnate links)
@@ -53,11 +67,14 @@ init_settlement_names <- function(output_path = SETTLEMENT_NAMES_PATH(),
     return(invisible(output_path))
   }
   template <- data.frame(
-    settlement_id = integer(0),
-    name          = character(0),
-    population    = numeric(0),
-    inkarnate     = character(0),
-    notes         = character(0),
+    settlement_id  = integer(0),
+    name           = character(0),
+    population     = numeric(0),
+    inkarnate      = character(0),
+    notes          = character(0),
+    lon            = numeric(0),
+    lat            = numeric(0),
+    phonology_seed = integer(0),
     stringsAsFactors = FALSE
   )
   write.csv(template, output_path, row.names = FALSE)
@@ -76,14 +93,19 @@ load_settlement_names <- function(path = SETTLEMENT_NAMES_PATH()) {
   for (col in SETTLEMENT_NAMES_SCHEMA) {
     if (!col %in% names(df)) {
       df[[col]] <- switch(col,
-        settlement_id = NA_integer_,
-        population    = NA_real_,
+        settlement_id  = NA_integer_,
+        population     = NA_real_,
+        lon            = NA_real_,
+        lat            = NA_real_,
+        phonology_seed = NA_integer_,
         NA_character_)
     }
   }
   # Blank cells in a text-ish CSV column arrive as "" rather than NA; normalise
   # so downstream code only has to test is.na() for "no override".
-  df$population <- suppressWarnings(as.numeric(df$population))
+  for (col in c("population", "lon", "lat", "phonology_seed")) {
+    df[[col]] <- suppressWarnings(as.numeric(df[[col]]))
+  }
   for (col in c("name", "inkarnate", "notes")) {
     df[[col]][is.na(df[[col]])] <- ""
   }
@@ -101,16 +123,45 @@ set_settlement_name <- function(settlement_id,
                                 population = NA_real_,
                                 inkarnate  = "",
                                 notes      = "",
+                                lon        = NA_real_,
+                                lat        = NA_real_,
+                                phonology_seed = NA_integer_,
+                                anchor     = TRUE,
                                 path       = SETTLEMENT_NAMES_PATH(),
                                 verbose    = TRUE) {
   if (!file.exists(path)) init_settlement_names(path, verbose = FALSE)
   df <- load_settlement_names(path)
+
+  # Anchor the row to where the place actually is, so it survives an ID
+  # reshuffle. Looked up from canon when not supplied, which is why a plain
+  # set_settlement_name(817, "Paingokgo") is still enough.
+  if (anchor && (is.na(lon) || is.na(lat) || is.na(phonology_seed))) {
+    sc <- SETTLEMENTS_CANON()
+    if (file.exists(sc)) {
+      s <- readRDS(sc)
+      idx <- which(as.integer(as.character(s$settlement_id)) == as.integer(settlement_id))
+      if (length(idx) == 1) {
+        if (is.na(lon)) lon <- s$lon[idx]
+        if (is.na(lat)) lat <- s$lat[idx]
+        if (is.na(phonology_seed) && "name_community" %in% names(s) &&
+            !is.na(s$name_community[idx])) {
+          phonology_seed <- 1000L + as.integer(s$name_community[idx])
+        }
+      } else if (verbose) {
+        cat("  [warn] id", settlement_id, "not in canon; row written unanchored\n")
+      }
+    }
+  }
+
   new_row <- data.frame(
-    settlement_id = as.integer(settlement_id),
-    name          = name,
-    population    = as.numeric(population),
-    inkarnate     = inkarnate,
-    notes         = notes,
+    settlement_id  = as.integer(settlement_id),
+    name           = name,
+    population     = as.numeric(population),
+    inkarnate      = inkarnate,
+    notes          = notes,
+    lon            = as.numeric(lon),
+    lat            = as.numeric(lat),
+    phonology_seed = as.integer(phonology_seed),
     stringsAsFactors = FALSE
   )
   idx <- which(df$settlement_id == settlement_id)
@@ -299,6 +350,42 @@ list_features <- function(path = CUSTOM_FEATURES_PATH()) {
 #'
 #' @return invisible list with applied counts.
 #' @export
+#' Resolve one annotation row to a row of canon.
+#'
+#' The id is tried first and is accepted only if it lands within `max_km` of
+#' the recorded coordinates -- an id that survived a rebuild by coincidence
+#' and now names a town on another continent is worse than no match, because
+#' it renames a stranger and says nothing. Coordinates win when they disagree.
+#'
+#' Returns list(idx, how, km); idx is integer(0) when nothing matched.
+#' @keywords internal
+resolve_settlement_row <- function(s, id, lon, lat, max_km = 75) {
+  km <- function(lo, la) {
+    R <- 6371
+    p1 <- la * pi / 180; p2 <- lat * pi / 180
+    dp <- (lat - la) * pi / 180; dl <- (lon - lo) * pi / 180
+    a <- sin(dp / 2)^2 + cos(p1) * cos(p2) * sin(dl / 2)^2
+    2 * R * asin(pmin(1, sqrt(a)))
+  }
+  sid <- suppressWarnings(as.integer(as.character(s$settlement_id)))
+  have_xy <- !is.na(lon) && !is.na(lat)
+
+  idx <- if (!is.na(id)) which(sid == as.integer(id)) else integer(0)
+  if (length(idx) == 1) {
+    if (!have_xy) return(list(idx = idx, how = "id", km = NA_real_))
+    d <- km(s$lon[idx], s$lat[idx])
+    if (d <= max_km) return(list(idx = idx, how = "id", km = d))
+  }
+  if (!have_xy) return(list(idx = integer(0), how = "none", km = NA_real_))
+
+  d <- km(s$lon, s$lat)
+  j <- which.min(d)
+  if (length(j) == 1 && is.finite(d[j]) && d[j] <= max_km)
+    return(list(idx = j, how = "coords", km = d[j]))
+  list(idx = integer(0), how = "none",
+       km = if (length(j) == 1) d[j] else NA_real_)
+}
+
 apply_annotations_to_canon <- function(
     settlement_names_path = SETTLEMENT_NAMES_PATH(),
     relocations_path      = RELOCATIONS_PATH(),
@@ -329,11 +416,35 @@ apply_annotations_to_canon <- function(
       if (!"name" %in% names(s))      s$name      <- NA_character_
       if (!"inkarnate" %in% names(s)) s$inkarnate <- NA_character_
       for (i in seq_len(nrow(nm))) {
-        idx <- which(s$settlement_id == nm$settlement_id[i])
+        res <- resolve_settlement_row(s, nm$settlement_id[i],
+                                      nm$lon[i], nm$lat[i])
+        idx <- res$idx
         if (length(idx) == 0) {
-          if (verbose) cat(sprintf("  [skip] settlement_id %s not in canon\n",
-                                    nm$settlement_id[i]))
+          # Loud on purpose. A pinned place that cannot be found is the one
+          # failure in this file that must never pass quietly: the campaign
+          # refers to it by name and the next render would drop it.
+          warning(sprintf(
+            "Pinned settlement '%s' (id %s) could not be matched in canon%s",
+            nm$name[i], nm$settlement_id[i],
+            if (is.finite(res$km)) sprintf(" (nearest node %.0f km away)", res$km) else ""),
+            call. = FALSE)
+          if (verbose) cat(sprintf("  [MISS] %s (id %s) -- no node within range\n",
+                                   nm$name[i], nm$settlement_id[i]))
           next
+        }
+        if (res$how == "coords") {
+          if (verbose) cat(sprintf("  [remap] %s: id %s -> %s (%.1f km from anchor)\n",
+                                   nm$name[i], nm$settlement_id[i],
+                                   as.character(s$settlement_id[idx]), res$km))
+          # Under ~15 km the anchor and the node are the same place that moved
+          # a little in the rebuild. Beyond that the pinned settlement probably
+          # stopped existing and its name is being ADOPTED by a neighbour --
+          # defensible, but a change to canon that must not happen quietly.
+          if (is.finite(res$km) && res$km > 15) {
+            warning(sprintf(
+              "Pinned name '%s' adopted by a node %.0f km from its anchor; the original settlement may no longer exist",
+              nm$name[i], res$km), call. = FALSE)
+          }
         }
         if (nzchar(nm$name[i])) {
           s$name[idx] <- nm$name[i]; applied$names <- applied$names + 1; changed <- TRUE
@@ -358,7 +469,11 @@ apply_annotations_to_canon <- function(
     if (length(rel$settlements) > 0) {
       for (id_str in names(rel$settlements)) {
         x   <- rel$settlements[[id_str]]
-        idx <- which(s$settlement_id == as.integer(id_str))
+        # Anchored on where the settlement was BEFORE the drag, for the same
+        # reason the name rows are: the id is not stable across a rebuild.
+        idx <- resolve_settlement_row(s, as.integer(id_str),
+                                      if (!is.null(x$original_lon)) as.numeric(x$original_lon) else NA_real_,
+                                      if (!is.null(x$original_lat)) as.numeric(x$original_lat) else NA_real_)$idx
         if (length(idx) == 0) next
         s$lon[idx] <- x$lon; s$lat[idx] <- x$lat
         applied$settlement_relocations <- applied$settlement_relocations + 1

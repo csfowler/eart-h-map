@@ -34,15 +34,23 @@ if (!exists("map_root")) source(here::here("Functions/MapRoot.R"))
 .gdal_bundles <- function() {
   lad <- Sys.getenv("LOCALAPPDATA")
   osgeo_py <- Sys.glob("C:/OSGeo4W/apps/Python*/Scripts/gdal2tiles.py")
+  osgeo_g2t <- if (length(osgeo_py)) osgeo_py[length(osgeo_py)] else ""
   list(
+    # python_home: OSGeo4W's bin/python.exe is a launcher that does NOT know
+    # where its own stdlib is. Without PYTHONHOME it derives sys.prefix from
+    # the working directory and dies with "No module named 'encodings'", so
+    # every gdal2tiles call silently produces nothing. See .gdal_system().
     osgeo4w = list(python   = "C:/OSGeo4W/bin/python.exe",
-                   gdal2tiles = if (length(osgeo_py)) osgeo_py[length(osgeo_py)] else "",
+                   gdal2tiles = osgeo_g2t,
                    gdaldem  = "C:/OSGeo4W/bin/gdaldem.exe",
-                   proj_lib = "C:/OSGeo4W/share/proj"),
+                   proj_lib = "C:/OSGeo4W/share/proj",
+                   python_home = if (nzchar(osgeo_g2t))
+                                   dirname(dirname(osgeo_g2t)) else ""),
     miniconda = list(python   = file.path(lad, "r-miniconda/python.exe"),
                      gdal2tiles = file.path(lad, "r-miniconda/Scripts/gdal2tiles.py"),
                      gdaldem  = file.path(lad, "r-miniconda/Library/bin/gdaldem.exe"),
-                     proj_lib = file.path(lad, "r-miniconda/Library/share/proj"))
+                     proj_lib = file.path(lad, "r-miniconda/Library/share/proj"),
+                     python_home = file.path(lad, "r-miniconda"))
   )
 }
 
@@ -67,7 +75,8 @@ detect_gdal_paths <- function(verbose = FALSE) {
       if (verbose) message("Using GDAL from: ", name)
       return(list(name = name, gdaldem = cfg$gdaldem,
                   gdal2tiles = c(cfg$python, cfg$gdal2tiles),
-                  proj_lib = cfg$proj_lib))
+                  proj_lib = .resolve_proj_lib(cfg, verbose = verbose),
+                  python_home = cfg$python_home))
     }
   }
   NULL
@@ -91,28 +100,81 @@ detect_gdal_paths <- function(verbose = FALSE) {
   if (.Platform$OS.type == "windows") utils::shortPathName(p) else p
 }
 
-#' Run a GDAL command. PROJ_LIB and PATH are set for the call only: set
-#' globally, a bundled (older) proj.db poisons terra's own EPSG lookups.
-.gdal_system <- function(gdal, args, verbose = TRUE) {
-  old <- Sys.getenv(c("PROJ_LIB", "PATH"), unset = NA)
+#' Evaluate `expr` with PROJ_LIB, PATH and PYTHONHOME set for the GDAL bundle
+#' and restored afterwards. Set globally, a bundled (older) proj.db poisons
+#' terra's own EPSG lookups and a bundled PYTHONHOME breaks any other Python
+#' this session shells out to.
+.with_gdal_env <- function(gdal, expr) {
+  old <- Sys.getenv(c("PROJ_LIB", "PATH", "PYTHONHOME"), unset = NA)
   on.exit({
     if (is.na(old[["PROJ_LIB"]])) Sys.unsetenv("PROJ_LIB") else Sys.setenv(PROJ_LIB = old[["PROJ_LIB"]])
+    if (is.na(old[["PYTHONHOME"]])) Sys.unsetenv("PYTHONHOME") else Sys.setenv(PYTHONHOME = old[["PYTHONHOME"]])
     Sys.setenv(PATH = old[["PATH"]])
   }, add = TRUE)
-  if (!is.null(gdal$proj_lib)) {
+  if (!is.null(gdal$proj_lib) && nzchar(gdal$proj_lib)) {
     Sys.setenv(PROJ_LIB = gdal$proj_lib)
     Sys.setenv(PATH = paste(dirname(gdal$gdaldem), old[["PATH"]], sep = .Platform$path.sep))
   }
-  # system2 quotes the command but not its arguments.
-  system2(args[1], shQuote(args[-1]),
-          stdout = if (verbose) "" else FALSE,
-          stderr = if (verbose) "" else FALSE)
+  # A bundled interpreter that cannot find its own stdlib fails BEFORE it runs
+  # gdal2tiles, so the only symptom is an empty tile directory.
+  if (!is.null(gdal$python_home) && nzchar(gdal$python_home))
+    Sys.setenv(PYTHONHOME = gdal$python_home)
+  force(expr)
+}
+
+#' Run a GDAL command under that environment.
+.gdal_system <- function(gdal, args, verbose = TRUE) {
+  .with_gdal_env(gdal,
+    # system2 quotes the command but not its arguments.
+    system2(args[1], shQuote(args[-1]),
+            stdout = if (verbose) "" else FALSE,
+            stderr = if (verbose) "" else FALSE))
+}
+
+#' Can this bundle resolve EPSG:3857? gdal2tiles reprojects to Web Mercator, so
+#' it cannot do anything without that, and it is the first thing to break when
+#' an install's proj.db is older than its GDAL. OSGeo4W here ships GDAL 3.11.3
+#' against a 2021 proj.db (DATABASE.LAYOUT.VERSION.MINOR = 1, GDAL wants >= 4):
+#' gdaldem only warns, but ImportFromEPSG(3857) fails outright.
+.proj_lib_works <- function(cfg, proj_lib) {
+  if (!nzchar(proj_lib) || !file.exists(file.path(proj_lib, "proj.db"))) return(FALSE)
+  probe <- list(gdaldem = cfg$gdaldem, proj_lib = proj_lib,
+                python_home = cfg$python_home)
+  code <- paste("from osgeo import osr; osr.UseExceptions();",
+                "s = osr.SpatialReference(); s.ImportFromEPSG(3857)")
+  st <- .with_gdal_env(probe, suppressWarnings(
+          system2(cfg$python, c("-c", shQuote(code)), stdout = FALSE, stderr = FALSE)))
+  identical(as.integer(st), 0L)
+}
+
+#' The bundle's own proj directory if it works, otherwise one borrowed from an
+#' R package. terra and sf ship a current proj.db and are already dependencies,
+#' so this repairs a stale GDAL install without touching it.
+.resolve_proj_lib <- function(cfg, verbose = FALSE) {
+  if (.proj_lib_works(cfg, cfg$proj_lib)) return(cfg$proj_lib)
+  for (pkg in c("terra", "sf")) {
+    alt <- tryCatch(system.file("proj", package = pkg), error = function(e) "")
+    if (nzchar(alt) && .proj_lib_works(cfg, alt)) {
+      if (verbose)
+        message("  bundled proj.db is too old for its GDAL; using ", pkg, "'s instead")
+      return(alt)
+    }
+  }
+  cfg$proj_lib   # nothing better: keep the original and let the caller fail loudly
 }
 
 # =============================================================================
 # BIOME / ELEVATION PALETTES
 # =============================================================================
 
+# The taxonomy grew from 9 codes to 13 on 2026-10-18 (Savanna,
+# Dry-Summer Scrub, Steppe, Cold Desert). The book side was single-sourced
+# into ClimateBuilder.R at the time; the MAP side kept independent copies and
+# none of them were extended, so those four biomes -- roughly a fifth to a
+# third of all land -- rendered as unlabelled flat grey with undifferentiated
+# relief and no vegetation at all. Nothing errored: every lookup had a silent
+# fallback. Bounds below are now DERIVED from the table rather than written as
+# a literal, which is what let the drift go unnoticed.
 BIOME_INFO <- list(
   "0" = list(code = 0, name = "Ocean",            color = "#08519c"),
   "1" = list(code = 1, name = "Glacial/Arctic",   color = "#f7fbff"),
@@ -122,7 +184,15 @@ BIOME_INFO <- list(
   "5" = list(code = 5, name = "Temperate Forest", color = "#238b45"),
   "6" = list(code = 6, name = "Tropical Forest",  color = "#00441b"),
   "7" = list(code = 7, name = "Mountainous",      color = "#737373"),
-  "8" = list(code = 8, name = "Tundra",           color = "#d0d1e6")
+  "8" = list(code = 8, name = "Tundra",           color = "#d0d1e6"),
+  # Placed beside their nearest existing relatives in THIS palette rather than
+  # borrowed from ClimateBuilder's (the map uses its own scheme): Savanna
+  # between Grassland and Desert, scrub an olive-grey, Steppe a paler
+  # Grassland, Cold Desert a sand carrying the blue cast of the cold classes.
+  "9"  = list(code =  9, name = "Savanna",          color = "#e3e09a"),
+  "10" = list(code = 10, name = "Dry-Summer Scrub", color = "#aab98c"),
+  "11" = list(code = 11, name = "Steppe",           color = "#dcecc0"),
+  "12" = list(code = 12, name = "Cold Desert",      color = "#e9e3c6")
 )
 
 # Warm parchment-toned elevation palette for medieval aesthetic
@@ -429,10 +499,16 @@ generate_hillshade_composite <- function(elevation_path,
     if (verbose) cat("  Step 4: paint ocean/lakes (depth-shaded)\n")
     wc <- resample(rast(wc_path), cr[[1]], method = "near")
     water_mask <- !is.na(wc) & (wc == WATER_CLASS$OCEAN | wc == WATER_CLASS$LAKE)
-    composite[[1]][water_mask] <- 62
-    composite[[2]][water_mask] <- 104
-    composite[[3]][water_mask] <- 150
-    composite[[4]][water_mask] <- 255
+    # ifel(), not `[<-`. At 0.01deg the composite is ~648M cells per band, and
+    # `composite[[b]][mask] <- v` pulls the whole selection into memory as a
+    # double vector (~5 GB a band) instead of letting terra chunk it. That is
+    # a std::bad_alloc on a 64 GB machine, and it is what stopped this step
+    # from ever completing on a box that had no pyramid to fall back on.
+    # ifel() is value-identical and block-wise.
+    composite[[1]] <- ifel(water_mask, 62,  composite[[1]])
+    composite[[2]] <- ifel(water_mask, 104, composite[[2]])
+    composite[[3]] <- ifel(water_mask, 150, composite[[3]])
+    composite[[4]] <- ifel(water_mask, 255, composite[[4]])
     dpath <- here::here("Input Data/HighResolution/water_depth.vrt")
     if (file.exists(dpath)) {
       depth <- resample(rast(dpath), cr[[1]], method = "bilinear")
@@ -446,7 +522,7 @@ generate_hillshade_composite <- function(elevation_path,
       shallow <- c(126, 178, 214); deep <- c(38, 76, 128)
       for (b in 1:3) {
         col_b <- shallow[b] + (deep[b] - shallow[b]) * dn
-        composite[[b]][water_mask] <- col_b[water_mask]
+        composite[[b]] <- ifel(water_mask, col_b, composite[[b]])
       }
       rm(depth, dn)
     }
@@ -455,10 +531,11 @@ generate_hillshade_composite <- function(elevation_path,
     if (verbose) cat("  Step 4: paint lakes (fallback flat)\n")
     water <- resample(rast(water_vrt_path), cr[[1]], method = "near")
     lake_mask <- !is.na(water) & water > 0
-    composite[[1]][lake_mask] <- 62
-    composite[[2]][lake_mask] <- 104
-    composite[[3]][lake_mask] <- 150
-    composite[[4]][lake_mask] <- 255
+    # ifel() for the same reason as the depth-shaded branch above.
+    composite[[1]] <- ifel(lake_mask, 62,  composite[[1]])
+    composite[[2]] <- ifel(lake_mask, 104, composite[[2]])
+    composite[[3]] <- ifel(lake_mask, 150, composite[[3]])
+    composite[[4]] <- ifel(lake_mask, 255, composite[[4]])
   }
   # Outside the continent transforms EVERYTHING is NA (elevation, water_class,
   # water_depth all end at the transform extents) — but that region is, by
@@ -545,13 +622,27 @@ generate_xyz_tiles <- function(raster_input, output_dir, layer_name,
   bash_exe  <- Sys.which("bash")
   if (pre_count == 0 && .Platform$OS.type == "windows" && nzchar(bash_exe)) {
     if (verbose) cat("  (retrying gdal2tiles under bash)\n")
-    system2(bash_exe, c("-c", shQuote(paste(shQuote(g2t_args, type = "sh"),
-                                            collapse = " "))),
-            stdout = if (verbose) "" else FALSE,
-            stderr = if (verbose) "" else FALSE)
+    # Under .with_gdal_env: this used to run AFTER .gdal_system() had already
+    # restored the environment, so the retry inherited neither PROJ_LIB nor
+    # PYTHONHOME and could only reproduce the failure it was retrying.
+    .with_gdal_env(gdal,
+      system2(bash_exe, c("-c", shQuote(paste(shQuote(g2t_args, type = "sh"),
+                                              collapse = " "))),
+              stdout = if (verbose) "" else FALSE,
+              stderr = if (verbose) "" else FALSE))
   }
   tile_count <- length(list.files(tile_dir, pattern = "\\.png$", recursive = TRUE))
   if (verbose) cat(sprintf("  Generated %d tiles\n", tile_count))
+  # This used to print "Generated 0 tiles" and carry on. The rest of the build
+  # does not read the pyramid, so a whole run would finish and exit clean with
+  # an empty tiles/ -- and because tile_path() is static-only at z <= 8, the
+  # map then comes up BLANK rather than broken. Fail here instead.
+  if (tile_count == 0)
+    stop("gdal2tiles produced no tiles for layer '", layer_name, "'.\n",
+         "  Command: ", paste(g2t_args, collapse = " "), "\n",
+         "  Check the GDAL bundle's Python can start on its own:\n",
+         "    ", gdal$gdal2tiles[1], " -c \"import osgeo.gdal\"\n",
+         "  ('No module named encodings' means PYTHONHOME is not reaching it.)")
   return(tile_dir)
 }
 
@@ -1339,9 +1430,14 @@ build_reference_map <- function(
     }
     if (file.exists(biome_path)) {
       biome_color_file <- file.path(output_dir, "biome_colors.txt")
-      create_gdal_color_file(0:8,
-        c("#08519c","#f7fbff","#2ca25f","#fee391","#c7e9b4",
-          "#238b45","#00441b","#737373","#d0d1e6"),
+      # Derived from BIOME_INFO, not re-listed. This call used to carry its own
+      # copy of the palette hardcoded to 0:8, so it was a second place the new
+      # codes had to be added and a second place nobody did.
+      .bi_codes <- sort(as.integer(names(BIOME_INFO)))
+      create_gdal_color_file(
+        .bi_codes,
+        vapply(as.character(.bi_codes),
+               function(k) BIOME_INFO[[k]]$color, character(1)),
         biome_color_file, verbose = verbose)
       generate_xyz_tiles(rast(biome_path), output_dir, "biome",
                          max_zoom = tile_max_zoom, color_file = biome_color_file,
@@ -1430,6 +1526,26 @@ build_reference_map <- function(
         }
       }
     }
+  }
+  ## These writes DROP the river_id/name columns FeatureNamer adds, and
+  ## MapBuilder cannot put them back: feature_names.rds maps river_id -> name,
+  ## but WHICH chain belongs to which river_id falls out of FeatureNamer's
+  ## upstream traversal and is stored nowhere. So say so loudly. The
+  ## 2026-10-21 rebuild shipped a map whose rivers had no names at all while
+  ## the registry still held every one of the 4,489 -- nothing errored, the
+  ## layer simply drew unlabelled.
+  if (need_rebuild &&
+      file.exists(file.path(here::here(), "Input Data", "Combined",
+                            "feature_names.rds"))) {
+    if (verbose)
+      cat("  !! river names dropped by this rewrite -",
+          "run build_feature_names(force = TRUE)\n")
+    warning(paste0("build_reference_map(): rewriting the rivers geojson dropped ",
+                   "FeatureNamer's river_id/name columns. Run ",
+                   "build_feature_names(force = TRUE) to restore them; it is ",
+                   "deterministic on its fixed seed and reproduces the same ",
+                   "names (verified 4489/4489, 600/600, 99/99)."),
+            call. = FALSE)
   }
   # Manifest: per-tier URL + min-zoom-to-load metadata for the template.
   rivers_manifest <- jsonlite::toJSON(

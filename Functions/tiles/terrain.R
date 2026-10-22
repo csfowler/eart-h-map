@@ -41,7 +41,11 @@ BIOME_RELIEF_M <- c(
   "5" = 80,   # Temp Forest- rolling hills
   "6" = 70,   # Trop Forest- rolling
   "7" = 280,  # Mountainous- rugged
-  "8" = 45    # Tundra     - low relief
+  "8" = 45,   # Tundra     - low relief
+  "9" = 50,   # Savanna    - grassland swells with occasional scarp
+  "10" = 85,  # Dry-Summer Scrub - hilly sclerophyll country
+  "11" = 45,  # Steppe     - gentle, thinner than grassland
+  "12" = 55   # Cold Desert- basin and dune, close to Desert
 )
 
 #' Fractal (fbm) simplex noise evaluated at absolute world coordinates.
@@ -166,7 +170,9 @@ add_microrelief <- function(elev_fine, biome_fine = NULL, water_mask = NULL,
 
   # Per-biome amplitude (metres).
   if (!is.null(biome_fine)) {
-    bcodes <- as.character(0:8)
+    # Derived from the table: a literal 0:8 here meant codes 9-12 never
+    # entered the reclass matrix and silently took the `others` default.
+    bcodes <- names(BIOME_RELIEF_M)
     rcl <- cbind(as.integer(bcodes), unname(BIOME_RELIEF_M[bcodes]))
     amp_m <- classify(biome_fine, rcl, others = 40)
   } else {

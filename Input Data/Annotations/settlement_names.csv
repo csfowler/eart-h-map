@@ -1,3 +1,7 @@
-"settlement_id","name","population","inkarnate","notes"
-817,"",702,"Paingokgo.jpg",""
-702,"Rukgokai",NA,"",""
+"settlement_id","name","population","inkarnate","notes","lon","lat","phonology_seed"
+817,"Paingokgo",702,"Paingokgo.jpg","",22.7658462664113,12.3260268467849,1049
+702,"Rukgokai",NA,"","",23.525,11.845,1049
+789,"Reirukai",NA,"","",21.985,13.005,1049
+890,"Autsauwau",NA,"","",-10.035,-3.51500000000001,1052
+619,"Zeihogig",NA,"","",15.705,44.325,1041
+823,"Dedamphil",NA,"","",27.495,8.12499999999999,1051

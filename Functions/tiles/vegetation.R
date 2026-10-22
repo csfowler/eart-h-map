@@ -70,14 +70,21 @@ BIOME_VEG <- list(
   "5" = list(cover = 0.68, canopy = "#2c5a32", meadow = "#8fa85c"),  # Temp Forest
   "6" = list(cover = 0.74, canopy = "#1d4623", meadow = "#6f9447"),  # Trop Forest
   "7" = list(cover = 0.22, canopy = "#56624a", meadow = "#8a906a"),  # Mountainous
-  "8" = list(cover = 0.26, canopy = "#6c7651", meadow = "#9aa074")   # Tundra
+  "8" = list(cover = 0.26, canopy = "#6c7651", meadow = "#9aa074"),  # Tundra
+  # Savanna carries scattered trees over grass, so its cover sits above
+  # Grassland's 0.38 but well below a closed forest; scrub is dense and low;
+  # Steppe is thinner than Grassland; Cold Desert is near-bare.
+  "9"  = list(cover = 0.45, canopy = "#5f7a3a", meadow = "#b9bf72"),  # Savanna
+  "10" = list(cover = 0.34, canopy = "#55613f", meadow = "#97a06e"),  # Dry-Summer Scrub
+  "11" = list(cover = 0.26, canopy = "#74854d", meadow = "#b3bd80"),  # Steppe
+  "12" = list(cover = 0.08, canopy = "#8a8a66", meadow = "#bdbb96")   # Cold Desert
 )
 # Capacity value that counts as "full" vegetation density (clamp reference).
 # capacity.vrt runs ~0-250 in practice, so the reference is ~200 (not thousands).
 VEG_CAPACITY_REF <- 200
 
 # The three lunar plant types and their per-biome mix -- MIRRORS
-# PlantBuilder::PLANT_MIX (rows = biome 0-8, cols = bloom/spreader/root). Each
+# PlantBuilder::PLANT_MIX (rows = biome 0-12, cols = bloom/spreader/root). Each
 # type is tied to a moon: bloom<-Ganymede, spreader<-Io, root<-Deos. Vegetation
 # type, and the moon-colour wash on it, vary globally with the annual lunar
 # climate (Input Data/Moons/annual_moon_power_stats.tif, bands Io/Ganymede/Deos
@@ -91,8 +98,12 @@ PLANT_MIX <- matrix(c(
   0.5, 0.2, 0.3,  # 5 Temperate Forest
   0.5, 0.3, 0.2,  # 6 Tropical Forest
   0.3, 0.3, 0.4,  # 7 Mountainous
-  0.1, 0.2, 0.7   # 8 Tundra
-), nrow = 9, ncol = 3, byrow = TRUE,
+  0.1, 0.2, 0.7,  # 8 Tundra
+  0.5, 0.4, 0.1,  # 9 Savanna -- blooms hard in the wet season
+  0.3, 0.2, 0.5,  # 10 Dry-Summer Scrub -- roots deep against a dry summer
+  0.3, 0.5, 0.2,  # 11 Steppe -- spreaders, as grassland but thinner
+  0.1, 0.4, 0.5   # 12 Cold Desert
+), nrow = 13, ncol = 3, byrow = TRUE,
   dimnames = list(NULL, c("bloom", "spreader", "root")))
 
 # Per-type foliage colour MODIFIER (RGB multiplier on the biome base colour) so
@@ -141,8 +152,14 @@ apply_vegetation <- function(comp, biome_fine, capacity_fine = NULL,
   xy <- crds(comp, na.rm = FALSE)
   mx <- xy[, 1]; my <- xy[, 2]; N <- length(mx)
   cm <- terra::values(comp)                                  # N x 3 (R,G,B)
-  bv <- vv(biome_fine)                                       # biome code 0-8 (NA)
-  idx <- bv + 1L; valid <- !is.na(bv) & bv >= 0 & bv <= 8; idx[!valid] <- 1L
+  bv <- vv(biome_fine)                                      # biome code 0-12 (NA)
+  # `bv <= 8` was the whole bug: codes 9-12 were marked INVALID, which set
+  # cover to 0 and zeroed the plant mix, so Savanna, Dry-Summer Scrub, Steppe
+  # and Cold Desert rendered as bare ground. Bound comes from the table now.
+  stopifnot(nrow(PLANT_MIX) == length(BIOME_VEG))
+  idx <- bv + 1L
+  valid <- !is.na(bv) & bv >= 0 & bv < length(BIOME_VEG)
+  idx[!valid] <- 1L
 
   # Openness -> canopy vs meadow split (wide-band warped fractal). A REGIONAL
   # octave (26 km) biases whole districts forested or open: without it the

@@ -382,6 +382,9 @@ server <- function(input, output, session) {
                                                   population = numeric(0),
                                                   inkarnate = character(0),
                                                   notes = character(0),
+                                                  lon = numeric(0),
+                                                  lat = numeric(0),
+                                                  phonology_seed = integer(0),
                                                   stringsAsFactors = FALSE))
   pending_relocations <- reactiveVal(load_relocations())
   pending_features    <- reactiveVal(read_custom_features() %||% empty_features_sf())
@@ -775,13 +778,40 @@ server <- function(input, output, session) {
     nm_idx <- which(nm$settlement_id == sid)
     pop_in <- suppressWarnings(as.numeric(input$sett_pop_in))
     if (length(pop_in) == 0) pop_in <- NA_real_
+    # Anchor the row to WHERE the settlement is, not just which id it has.
+    # Settlement ids are reassigned by seq_len() on every Ch8 rebuild, so an
+    # id-only row silently re-points at a different town; lon/lat and the
+    # community's phonology seed are what make an override survive one.
+    # Taken from canon at the moment of editing, which is the only moment the
+    # editor can be sure the id and the place still agree.
+    anchor <- tryCatch({
+      sc <- readRDS(SETTLEMENTS_CANON())
+      k  <- which(as.integer(as.character(sc$settlement_id)) == as.integer(sid))
+      if (length(k) == 1) list(
+        lon = as.numeric(sc$lon[k]), lat = as.numeric(sc$lat[k]),
+        seed = if ("name_community" %in% names(sc) && !is.na(sc$name_community[k]))
+                 1000L + as.integer(sc$name_community[k]) else NA_integer_)
+      else NULL
+    }, error = function(e) NULL)
+
     new_row <- data.frame(
-      settlement_id = as.integer(sid),
-      name          = trimws(input$sett_name_in %||% ""),
-      population    = pop_in,
-      inkarnate     = input$sett_inkarnate_in %||% "",
-      notes         = trimws(input$sett_notes_in %||% ""),
+      settlement_id  = as.integer(sid),
+      name           = trimws(input$sett_name_in %||% ""),
+      population     = pop_in,
+      inkarnate      = input$sett_inkarnate_in %||% "",
+      notes          = trimws(input$sett_notes_in %||% ""),
+      lon            = if (!is.null(anchor)) anchor$lon  else NA_real_,
+      lat            = if (!is.null(anchor)) anchor$lat  else NA_real_,
+      phonology_seed = if (!is.null(anchor)) anchor$seed else NA_integer_,
       stringsAsFactors = FALSE)
+    # Keep the frame on the canonical schema, so a row written by an older
+    # copy of this app still lines up for the assignment below.
+    for (cc in SETTLEMENT_NAMES_SCHEMA)
+      if (!cc %in% names(nm))
+        nm[[cc]] <- if (cc %in% c("lon", "lat")) NA_real_
+                    else if (cc == "phonology_seed") NA_integer_ else NA
+    nm <- nm[, SETTLEMENT_NAMES_SCHEMA, drop = FALSE]
+    new_row <- new_row[, SETTLEMENT_NAMES_SCHEMA, drop = FALSE]
     # If everything is empty, drop the row
     is_empty <- !nzchar(new_row$name) && !nzchar(new_row$inkarnate) &&
                 !nzchar(new_row$notes) && is.na(new_row$population)
@@ -1100,6 +1130,7 @@ server <- function(input, output, session) {
       settlement_id = integer(0), name = character(0),
       population = numeric(0),
       inkarnate = character(0), notes = character(0),
+      lon = numeric(0), lat = numeric(0), phonology_seed = integer(0),
       stringsAsFactors = FALSE))
     pending_relocations(load_relocations())
     pending_features(read_custom_features() %||% empty_features_sf())
