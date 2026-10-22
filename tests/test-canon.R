@@ -65,14 +65,42 @@ if (!have_render_data()) {
                max(v)))
   })
 
+  # The canonical codes are the keys of BIOME_INFO, never a literal range. The
+  # taxonomy grew from 9 codes to 13 on 2026-10-18, and a hardcoded 0-8 here
+  # failed every sample of Savanna, Dry-Summer Scrub, Steppe and Cold Desert --
+  # about a third of all land -- on the first export of the new canon.
+  .biome_codes <- sort(as.integer(names(BIOME_INFO)))
+
   test_that("biome codes stay inside the canonical range", {
     # synthesize_biome() must never introduce a class absent from the
-    # neighbourhood. The weaker but checkable invariant: no code outside 0-8.
+    # neighbourhood. The weaker but checkable invariant: no code outside
+    # BIOME_INFO.
     v <- terra::rast(here::here("Input Data/HighResolution/biome.vrt"))
     s <- terra::spatSample(v, 4000, method = "regular", na.rm = TRUE)[, 1]
     s <- s[!is.na(s)]
-    ok(length(s) > 0 && all(s >= 0 & s <= 8),
-       sprintf("all %d sampled biome codes are within BIOME_CODES 0-8", length(s)))
+    stray <- setdiff(unique(s), .biome_codes)
+    ok(length(s) > 0 && !length(stray),
+       sprintf("all %d sampled biome codes are in BIOME_INFO (%d-%d)%s",
+               length(s), min(.biome_codes), max(.biome_codes),
+               if (length(stray)) paste0(" -- stray: ", paste(stray, collapse = ", "))
+               else ""))
+  })
+
+  test_that("every biome in canon has a colour, a relief and a vegetation", {
+    # Each lookup falls back silently -- grey, no relief, bare ground -- so a
+    # biome the data carries but a table omits renders wrong without an error.
+    # That is how four biomes shipped as flat grey once. Check every code the
+    # 0.05-degree raster actually holds, not just the ones a sample hits.
+    present <- sort(unique(terra::unique(
+      terra::rast(here::here("Input Data/Climate/biome.tif")))[, 1]))
+    present <- present[!is.na(present)]
+    for (tbl in c("BIOME_INFO", "BIOME_RELIEF_M", "BIOME_VEG")) {
+      miss <- setdiff(as.character(present), names(get(tbl)))
+      ok(!length(miss),
+         sprintf("%s covers all %d biome codes in canon%s", tbl, length(present),
+                 if (length(miss)) paste0(" -- missing ", paste(miss, collapse = ", "))
+                 else ""))
+    }
   })
 
   test_that("water class stays inside its canonical range", {

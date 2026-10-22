@@ -110,7 +110,9 @@ reference_places <- function() {
     b <- terra::rast(bi_)
     same <- terra::focal(b, w = 3, fun = "min") == terra::focal(b, w = 3, fun = "max")
     bv <- terra::values(b)[, 1]; sv <- terra::values(same)[, 1]
-    for (code in 1:8) {
+    # Every land code in BIOME_INFO (0 is ocean). A literal 1:8 here left the
+    # four biomes added on 2026-10-18 with no reference tile at all.
+    for (code in setdiff(sort(as.integer(names(BIOME_INFO))), 0L)) {
       nm <- BIOME_INFO[[as.character(code)]]$name
       cells <- which(bv == code & sv %in% TRUE)
       # Some biomes (desert, here) never fill a clean 3x3 inside +-60 degrees
