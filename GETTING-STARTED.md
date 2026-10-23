@@ -147,6 +147,11 @@ not run any of it.
 
 Open <http://127.0.0.1:8765/index.html> and zoom in on a coastline.
 
+**The first time you zoom past level 8, expect a wait of about three minutes**
+with nothing drawn: the server is building the road, river and settlement
+caches the detailed tiles are drawn from. It does this once. After that a new
+tile takes a couple of seconds, and one you have already seen is instant.
+
 The tile server **saves the tiles it invents** into `Map/tiles/` as a cache.
 You never manage that cache: each tile records the code that drew it, so when
 you change the rendering, affected tiles re-render on their next request.

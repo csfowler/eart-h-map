@@ -1534,7 +1534,17 @@ build_reference_map <- function(
   ## 2026-10-21 rebuild shipped a map whose rivers had no names at all while
   ## the registry still held every one of the 4,489 -- nothing errored, the
   ## layer simply drew unlabelled.
+  ## The student repo ships the registry but not FeatureNamer.R (it needs the
+  ## whole naming pipeline), so there the names cannot be restored and the
+  ## warning below would send a student to a function that does not exist.
+  ## Say what is actually true instead.
   if (need_rebuild &&
+      !file.exists(file.path(here::here(), "Functions", "FeatureNamer.R"))) {
+    if (verbose)
+      cat("  note: rivers, lakes and ranges are drawn unnamed in this repo",
+          "(feature naming runs in the pipeline, not here)
+")
+  } else if (need_rebuild &&
       file.exists(file.path(here::here(), "Input Data", "Combined",
                             "feature_names.rds"))) {
     if (verbose)

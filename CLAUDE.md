@@ -712,7 +712,8 @@ dependency — see §9.
   `map_path()` from `MapRoot.R`. Do not construct map paths by hand — the map
   directory is not necessarily inside this repository.
 - Rasters here are **integer copies** of Float32 originals. Elevation and water
-  depth are metres, precipitation mm, biome the 0–8 codes, water_class 0–4.
+  depth are metres, precipitation mm, biome the 0–12 codes (look them up in
+  `BIOME_INFO`, never write the range as a literal), water_class 0–4.
   Temperature is Int16 centidegrees with a GDAL scale of 0.01 stamped on the
   band, which `terra::rast()` applies on read — you get °C.
 - Comment *why*, not *what*. This codebase is dense with non-obvious choices and

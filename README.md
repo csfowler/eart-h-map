@@ -25,7 +25,8 @@ must never contradict the canon above it.
 ## Data notes
 
 The rasters are integer copies of the pipeline's Float32 originals. Elevation
-and water depth are in metres, precipitation in mm, biome uses codes 0–8 and
+and water depth are in metres, precipitation in mm, biome uses codes 0–12 (the
+names and colours are `BIOME_INFO` in `Functions/MapBuilder.R`) and
 water_class 0–4. Temperature is stored as centidegrees with a GDAL scale of
 0.01, so `terra::rast()` returns °C.
 
